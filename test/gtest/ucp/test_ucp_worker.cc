@@ -16,6 +16,7 @@ extern "C" {
 #include <uct/base/uct_iface.h>
 }
 
+#include <mutex>
 
 class test_ucp_worker_discard : public ucp_test {
 public:
@@ -726,6 +727,7 @@ public:
         mock_mem_allocator_t *new_usr_allocator = NULL;
         int i;
         size_t seg_size = params->seg_size;
+        mem_allocator_mutex.lock();
 
         if (mock_mem_allocators[UCP_MD_INDEX_BITS*2].seg_size == 0) {
             mock_mem_allocators[UCP_MD_INDEX_BITS*2].seg_size = 8256;
@@ -759,6 +761,8 @@ public:
             *arg = &mock_mem_allocators[i];
         }
 
+        mem_allocator_mutex.unlock();
+
         return status;
     }
 
@@ -773,7 +777,7 @@ public:
         seg_size = ((mock_mem_allocator_t*)arg)->seg_size;
         context = ((mock_mem_allocator_t*)arg)->context;
         //use malloc to allocate descriptor
-        address = ucs_malloc(seg_size, "Mock user allocation");
+        address = new char[seg_size];
         if (address == NULL) {
             status = UCS_ERR_NO_MEMORY;
             return status;
@@ -794,7 +798,9 @@ public:
 
     /// @override
     virtual void ucp_context_init_cb(ucp_context_h m_ucph) const {
+        mem_allocator_mutex.lock();
         usr_allocators_context = m_ucph;
+        mem_allocator_mutex.unlock();
     }
 
     /// @override
@@ -848,6 +854,8 @@ protected:
     }
 
     bool search_region(void* data) {
+        bool ret = false;
+        mem_allocator_mutex.lock();
 
         for (auto&& allocated_region: allocated_regions)
         {
@@ -860,11 +868,14 @@ protected:
             end_region = (void*)(((char*)start_region)+seg_size);
 
             if (data >= start_region && data < end_region) {
-                return true;
+                ret = true;
+                goto out;
             }
         }
 
-        return false;
+    out:
+        mem_allocator_mutex.unlock();
+        return ret;
     }
 
     static ucs_status_t am_data_hold_cb(void *arg, const void *header,
@@ -894,6 +905,7 @@ protected:
             std::tie(seg_size, start_region, memh, context) = allocated_region;
 
             status = ucp_mem_unmap(context, memh);
+            delete[] (char*)start_region;
             ASSERT_UCS_OK(status);
             
         }
@@ -916,15 +928,19 @@ protected:
     static const uint16_t           TEST_AM_NBX_ID = 0;
 
 private:
+    static std::mutex mem_allocator_mutex;
     static std::vector< std::tuple<size_t, void*, ucp_mem_h, ucp_context_h> > allocated_regions;
     static mock_mem_allocator_t mock_mem_allocators[UCP_MD_INDEX_BITS*2+1];
     static ucp_context_h usr_allocators_context;
     
     static void add_region(size_t seg_size, void* desc, ucp_mem_h ucp_memh, ucp_context_h context) {
+        mem_allocator_mutex.lock();
         allocated_regions.push_back(std::make_tuple(seg_size, desc, ucp_memh, context));
+        mem_allocator_mutex.unlock();
     }
 };
 
+std::mutex test_ucp_worker_with_user_memory_allocator::mem_allocator_mutex;
 std::vector< std::tuple<size_t, void*, ucp_mem_h, ucp_context_h> > test_ucp_worker_with_user_memory_allocator::allocated_regions;
 mock_mem_allocator_t test_ucp_worker_with_user_memory_allocator::mock_mem_allocators[UCP_MD_INDEX_BITS*2+1] = {{0}};
 ucp_context_h test_ucp_worker_with_user_memory_allocator::usr_allocators_context = NULL;
