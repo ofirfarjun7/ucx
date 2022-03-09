@@ -828,6 +828,8 @@ public:
     /// @override
     virtual void cleanup()
     {
+        cleanup_allocated_regions();
+        cleanup_mem_allocators();
         ucp_test::cleanup();
     }
 
@@ -966,17 +968,13 @@ UCS_TEST_P(test_ucp_worker_with_user_memory_allocator, am_send_recv_with_usr_all
     ucp_recv_desc_t *rdesc = (ucp_recv_desc_t*)rx_data - 1;
     ASSERT_TRUE((rdesc->flags & UCP_RECV_DESC_FLAG_UCT_DESC) > 0);
     EXPECT_EQ(search_region(rx_data), true);
-
-    cleanup_allocated_regions();
-    cleanup_mem_allocators();
 }
 
 UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_worker_with_user_memory_allocator, rcx,    "rc_x");
-// UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_worker_with_user_memory_allocator, rc,    "rc_v");
+UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_worker_with_user_memory_allocator, rc,    "rc_v");
 // UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_worker_with_user_memory_allocator, udx,    "ud_x");
 // UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_worker_with_user_memory_allocator, ud,     "ud_v");
 // UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_worker_with_user_memory_allocator, dcx,    "dc_x");
-// UCP_INSTANTIATE_TEST_CASE_TLS(test_ucp_worker_with_user_memory_allocator, tcp,    "tcp");
 
 
 class test_ucp_worker_thread_mode : public ucp_test {
