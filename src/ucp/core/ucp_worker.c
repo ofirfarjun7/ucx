@@ -915,6 +915,10 @@ ucp_worker_select_best_ifaces(ucp_worker_h worker, ucp_tl_bitmap_t *tl_bitmap_p)
     }
 }
 
+static ucs_status_t ucp_worker_create_ifaces_rx_mpool(ucs_mpool_t *mp) {
+    return UCS_OK;
+}
+
 /**
  * @brief  Open all resources as interfaces on this worker
  *
@@ -939,6 +943,8 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
     unsigned num_ifaces;
     ucs_status_t status;
 
+
+    ucp_worker_create_ifaces_rx_mpool(&worker->ifaces_resources.rx_mp);
     /* If tl_bitmap is already set, just use it. Otherwise open ifaces on all
      * available resources and then select the best ones. */
     ctx_tl_bitmap  = context->tl_bitmap;
