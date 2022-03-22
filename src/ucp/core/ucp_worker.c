@@ -23,6 +23,7 @@
 #include <ucp/stream/stream.h>
 #include <ucs/config/parser.h>
 #include <ucs/debug/debug_int.h>
+#include <ucs/datastruct/ucs_buffers_agent.h>
 #include <ucs/datastruct/mpool.inl>
 #include <ucs/datastruct/ptr_map.inl>
 #include <ucs/datastruct/queue.h>
@@ -915,7 +916,155 @@ ucp_worker_select_best_ifaces(ucp_worker_h worker, ucp_tl_bitmap_t *tl_bitmap_p)
     }
 }
 
-static ucs_status_t ucp_worker_create_ifaces_rx_mpool(ucs_mpool_t *mp) {
+UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_ifaces_mp_chunk_alloc, (mp, size_p, chunk_p),
+                 ucs_mpool_t *mp, size_t *size_p, void **chunk_p)
+{   
+    ucs_status_t status;
+    ucp_mem_map_params_t params;
+    ucp_mem_h memh;
+    ucp_worker_buffers_agent_t *agent = (ucp_worker_buffers_agent_t*)mp;
+    ucp_context_h context = ((ucp_worker_h)(agent->ext))->context;
+    ucp_shared_mpool_chunk_hdr_t *chunk_hdr;
+    size_t chunk_size = (*size_p) + sizeof(*chunk_hdr);
+
+    if ((status = ucs_mpool_chunk_malloc(mp, &chunk_size, chunk_p)) != UCS_OK) {
+        return status;
+    }
+
+    params.field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS |
+                            UCP_MEM_MAP_PARAM_FIELD_LENGTH;
+    params.address    = *chunk_p;
+    params.length     = chunk_size;
+    status = ucp_mem_map(context, &params, &memh);
+    
+    chunk_hdr = *chunk_p;
+    chunk_hdr->memh = memh;
+    *chunk_p = chunk_hdr + 1;
+
+    return status;
+}
+
+UCS_PROFILE_FUNC_VOID(ucp_worker_ifaces_mp_chunk_release, (mp, chunk),
+                      ucs_mpool_t *mp, void *chunk)
+{
+    ucp_worker_buffers_agent_t *agent = (ucp_worker_buffers_agent_t*)mp;
+    ucp_shared_mpool_chunk_hdr_t *chunk_hdr = UCS_PTR_BYTE_OFFSET(chunk, -sizeof(ucp_shared_mpool_chunk_hdr_t));
+    ucp_mem_unmap(((ucp_worker_h)agent->ext)->context, chunk_hdr->memh);
+    ucs_mpool_chunk_free(mp, (void*)chunk_hdr);
+}
+
+static void ucp_worker_ifaces_mp_obj_init(ucs_mpool_t *mp, void *obj, void *chunk)
+{
+    ucp_shared_mpool_chunk_hdr_t *chunk_hdr = UCS_PTR_BYTE_OFFSET(chunk, -sizeof(ucp_shared_mpool_chunk_hdr_t));
+    ucp_shared_mpool_buf_hdr_t *buf_hdr = obj;
+
+    buf_hdr->ucp_memh = chunk_hdr->memh;
+}
+
+static ucs_mpool_ops_t ucp_worker_ifaces_mpool_ops = {
+    .chunk_alloc   = ucp_worker_ifaces_mp_chunk_alloc,
+    .chunk_release = ucp_worker_ifaces_mp_chunk_release,
+    .obj_init      = ucp_worker_ifaces_mp_obj_init,
+    .obj_cleanup   = NULL,
+    .obj_str       = NULL
+};
+
+ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem, unsigned md_index, uct_mem_h* uct_memh) {
+    ucs_status_t status = UCS_OK;
+    unsigned md_bit_idx;
+    ucp_md_map_t md_map_p;
+    unsigned uct_memh_idx = 0;
+
+    if (md_index >= UCP_MD_INDEX_BITS) {
+        status = UCS_ERR_NO_DEVICE;
+        goto out;
+    }
+
+    md_map_p = ucp_memh->md_map;
+    if (!(md_map_p & UCS_BIT(md_index))) {
+        status = UCS_ERR_NO_RESOURCE;
+        goto out;
+    }
+
+    if (!uct_memh_idx_mem[md_index]) {
+        
+        ucs_for_each_bit(md_bit_idx, md_map_p) {
+            if (md_bit_idx == md_index) {
+                break;
+            }
+            ++uct_memh_idx;
+        }
+
+        uct_memh_idx_mem[md_index] = uct_memh_idx + 1;
+    }
+
+    *uct_memh = ucp_memh->uct[uct_memh_idx_mem[md_index] - 1];
+out:    
+    return status;
+}
+
+
+UCS_PROFILE_FUNC(void*, ucp_worker_rx_buffers_agent_get, (agent, arg),
+                 void *agent, void* arg)
+{
+    ucp_context_h context;
+    ucp_worker_h worker;
+    ucp_worker_iface_t *wiface;
+    ucp_tl_resource_desc_t *resource;
+    unsigned md_index;
+    ucp_mem_h ucp_memh;
+    void* obj;
+    ucp_shared_mpool_buf_hdr_t *buf;
+    ucp_worker_buffers_agent_t *rx_buff_agent = (ucp_worker_buffers_agent_t*)agent;
+
+    obj = ucs_mpool_get_inline(&rx_buff_agent->mpool);
+
+    if (obj == NULL) {
+        //TODO - alert/log maybe?
+        return obj;
+    }
+
+    buf = (ucp_shared_mpool_buf_hdr_t*)obj;
+
+    wiface   = (ucp_worker_iface_t*)arg;
+    worker   = wiface->worker;
+    context  = worker->context;
+    resource = &context->tl_rscs[wiface->rsc_index];
+    md_index = resource->md_index;
+
+    ucp_memh = buf->ucp_memh;
+    if (ucp_worker_get_uct_memh(ucp_memh, rx_buff_agent->uct_memh_idx_mem, md_index, &buf->uct_memh) != UCS_OK) {
+        //TODO - alert/log/put back in mpool maybe?
+        return NULL;
+    }
+
+    return &buf->uct_memh;
+}
+
+UCS_PROFILE_FUNC_VOID(ucp_worker_shared_mpool_put, (obj),
+                      void *obj)
+{   
+    obj = UCS_PTR_BYTE_OFFSET(obj, -sizeof(uct_mem_h));
+    ucs_mpool_put_inline((void*)obj);
+    VALGRIND_MAKE_MEM_UNDEFINED(obj, sizeof(*(obj))); \
+}
+
+static ucs_status_t ucp_worker_create_ifaces_rx_buffers_agent(ucp_worker_h worker) {
+
+    worker->rx_buffers_agent_ops.get_buf = ucp_worker_rx_buffers_agent_get;
+    worker->rx_buffers_agent_ops.put_buf = ucp_worker_shared_mpool_put;
+    ucs_mpool_init(
+        &worker->rx_buffers_agent.mpool, 
+        16, 
+        8356+sizeof(ucp_shared_mpool_buf_hdr_t), 
+        98+sizeof(ucp_shared_mpool_buf_hdr_t), 
+        64, 
+        4506, 
+        4294967295, 
+        &ucp_worker_ifaces_mpool_ops, 
+        "rx_buffs_shared_mpool"
+        );
+    worker->rx_buffers_agent.ext = (void*)worker;
     return UCS_OK;
 }
 
@@ -944,7 +1093,7 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
     ucs_status_t status;
 
 
-    ucp_worker_create_ifaces_rx_mpool(&worker->ifaces_resources.rx_mp);
+    ucp_worker_create_ifaces_rx_buffers_agent(worker);
     /* If tl_bitmap is already set, just use it. Otherwise open ifaces on all
      * available resources and then select the best ones. */
     ctx_tl_bitmap  = context->tl_bitmap;
@@ -966,6 +1115,9 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
 
     worker->num_ifaces = num_ifaces;
     iface_id           = 0;
+
+    iface_params.rx_buffers_agent_ops = &worker->rx_buffers_agent_ops;
+    iface_params.rx_buffers_agent = &worker->rx_buffers_agent;
 
     UCS_BITMAP_FOR_EACH_BIT(tl_bitmap, tl_id) {
         iface_params.field_mask = UCT_IFACE_PARAM_FIELD_OPEN_MODE;
@@ -1114,6 +1266,8 @@ ucs_status_t ucp_worker_iface_open(ucp_worker_h worker, ucp_rsc_index_t tl_id,
     wiface->proxy_recv_count = 0;
     wiface->post_count       = 0;
     wiface->flags            = 0;
+
+    iface_params->rx_buffers_agent_arg = wiface;
 
     /* Read interface or md configuration */
     if (resource->flags & UCP_TL_RSC_FLAG_SOCKADDR) {
@@ -1791,6 +1945,8 @@ static void ucp_worker_destroy_mpools(ucp_worker_h worker)
     }
     ucs_mpool_cleanup(&worker->req_mp,
                       !(worker->flags & UCP_WORKER_FLAG_IGNORE_REQUEST_LEAK));
+    //TODO - need to solve leak check issues in ifaces                      
+    ucs_mpool_cleanup(&worker->rx_buffers_agent.mpool, 0);
 }
 
 static void

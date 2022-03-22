@@ -15,6 +15,7 @@
 #include <uct/api/tl.h>
 #include <uct/api/version.h>
 #include <ucs/async/async_fwd.h>
+#include <ucs/datastruct/ucs_buffers_agent.h>
 #include <ucs/datastruct/callbackq.h>
 #include <ucs/datastruct/linear_func.h>
 #include <ucs/memory/memory_type.h>
@@ -654,7 +655,16 @@ enum uct_iface_params_field {
     UCT_IFACE_PARAM_FIELD_AM_ALIGNMENT       = UCS_BIT(16),
 
     /** Enables @ref uct_iface_params_t::am_align_offset */
-    UCT_IFACE_PARAM_FIELD_AM_ALIGN_OFFSET    = UCS_BIT(17)
+    UCT_IFACE_PARAM_FIELD_AM_ALIGN_OFFSET    = UCS_BIT(17),
+    
+    /** Enables @ref uct_iface_params_t::rx_buffers_agent_ops */
+    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT_OPS    = UCS_BIT(18),
+    
+    /** Enables @ref uct_iface_params_t::rx_buffers_agent */
+    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT    = UCS_BIT(19),
+    
+    /** Enables @ref uct_iface_params_t::rx_buffers_agent_arg */
+    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT_ARG    = UCS_BIT(20)
 };
 
 /**
@@ -1125,6 +1135,15 @@ struct uct_iface_params {
      * +-------------------+
      */
     size_t                                       am_align_offset;
+
+    /* RX Buffers Agent Ops */
+    ucs_buffers_agent_ops_t*                     rx_buffers_agent_ops;
+    
+    /* RX Buffers Agent */
+    void*                                        rx_buffers_agent;
+
+    /* RX Buffers Agent Arg */
+    void*                                        rx_buffers_agent_arg;
 };
 
 

@@ -16,6 +16,7 @@
 #include <ucp/core/ucp_am.h>
 #include <ucp/tag/tag_match.h>
 #include <ucs/datastruct/mpool.h>
+#include <ucs/datastruct/ucs_buffers_agent.h>
 #include <ucs/datastruct/mpool_set.h>
 #include <ucs/datastruct/queue_types.h>
 #include <ucs/datastruct/strided_alloc.h>
@@ -218,6 +219,28 @@ KHASH_TYPE(ucp_worker_mpool_hash, ucp_worker_mpool_key_t, ucs_mpool_t);
 typedef khash_t(ucp_worker_mpool_hash) ucp_worker_mpool_hash_t;
 
 /**
+ * Memory buffers chunk details for shared mpool chunk.
+ */
+typedef struct ucp_shared_mpool_chunk_hdr {
+    ucp_mem_h                     memh;
+} ucp_shared_mpool_chunk_hdr_t;
+
+/**
+ * Memory buffer details for shared mpool buffer.
+ */
+typedef struct ucp_shared_mpool_buf_hdr {
+    ucp_mem_h ucp_memh;
+    uct_mem_h uct_memh;
+} ucp_shared_mpool_buf_hdr_t;
+
+typedef struct ucp_buffers_agent {
+    ucs_mpool_t mpool;
+    void* ext;
+    unsigned uct_memh_idx_mem[UCP_MD_INDEX_BITS];
+} ucp_worker_buffers_agent_t;
+
+
+/**
  * UCP worker iface, which encapsulates UCT iface, its attributes and
  * some auxiliary info needed for tag matching offloads.
  */
@@ -294,9 +317,8 @@ typedef struct ucp_worker {
                                                              one for each resource */
     unsigned                         num_ifaces;          /* Number of elements in ifaces array  */
     unsigned                         num_active_ifaces;   /* Number of activated ifaces  */
-    struct {
-      ucs_mpool_t rx_mp; /*Ifaces shared mpool for accumulating rx queues*/   
-    } ifaces_resources;
+    ucp_worker_buffers_agent_t       rx_buffers_agent;
+    ucs_buffers_agent_ops_t          rx_buffers_agent_ops;
     ucp_tl_bitmap_t                  scalable_tl_bitmap;  /* Map of scalable tl resources */
     ucp_worker_cm_t                  *cms;                /* Array of CMs, one for each component */
     ucs_mpool_set_t                  am_mps;              /* Memory pool set for AM receives */

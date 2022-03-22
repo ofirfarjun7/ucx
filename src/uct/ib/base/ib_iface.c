@@ -274,7 +274,7 @@ void uct_ib_iface_release_desc(uct_recv_desc_t *self, void *desc)
     void *ib_desc;
 
     ib_desc = UCS_PTR_BYTE_OFFSET(desc, -(ptrdiff_t)iface->config.rx_headroom_offset);
-    ucs_mpool_put_inline(ib_desc);
+    UCT_TL_IFACE_PUT_DESC_USING_AGENT(iface->super, ib_desc);
 }
 
 static inline uct_ib_roce_version_t
@@ -1515,7 +1515,6 @@ int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
 {
     uct_ib_iface_recv_desc_t *desc;
     unsigned count;
-
     count = 0;
     while (count < n) {
         UCT_TL_IFACE_GET_RX_DESC(&iface->super, mp, desc, break);

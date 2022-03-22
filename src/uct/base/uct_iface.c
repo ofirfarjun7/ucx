@@ -527,6 +527,9 @@ UCS_CLASS_INIT_FUNC(uct_base_iface_t, uct_iface_ops_t *ops,
                                                     ERR_HANDLER_ARG, NULL);
     self->progress_flags    = 0;
     uct_worker_progress_init(&self->prog);
+    self->rx_buffers_agent = params->rx_buffers_agent;
+    self->rx_buffers_agent_arg = params->rx_buffers_agent_arg;
+    self->rx_buffers_agent_ops = params->rx_buffers_agent_ops;
 
     for (id = 0; id < UCT_AM_ID_MAX; ++id) {
         uct_iface_set_stub_am_handler(self, id);

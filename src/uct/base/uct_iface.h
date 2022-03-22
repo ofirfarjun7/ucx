@@ -278,6 +278,15 @@ typedef struct uct_base_iface {
         size_t               max_num_eps;
     } config;
 
+    /* RX Buffers Agent */
+    void*                        rx_buffers_agent;
+    
+    /* RX Buffers Agent Ops */
+    ucs_buffers_agent_ops_t*     rx_buffers_agent_ops;
+
+    /* RX Buffers Agent Arg */
+    void*                        rx_buffers_agent_arg;
+
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
 } uct_base_iface_t;
 
@@ -456,10 +465,27 @@ typedef struct uct_iface_mpool_config {
         VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
     }
 
+typedef struct uct_ib_iface_recv_desc2 {
+    uint32_t                lkey;
+} UCS_S_PACKED uct_ib_iface_recv_desc2_t;
+
+
+typedef struct uct_ib_mem2 {
+    uint32_t                lkey;
+    uint32_t                rkey;
+    uint32_t                atomic_rkey;
+    uint32_t                flags;
+} uct_ib_mem2_t;
 
 #define UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure) \
     { \
-        _desc = ucs_mpool_get_inline(_mp); \
+        uct_base_iface_t *iface_p = _iface; \
+        uct_mem_h _hdr; \
+        uct_ib_iface_recv_desc2_t* uct_desc; \
+        _desc = iface_p->rx_buffers_agent_ops->get_buf(iface_p->rx_buffers_agent, iface_p->rx_buffers_agent_arg); \
+        _hdr = *(uct_mem_h*)(_desc); \
+        uct_desc = (uct_ib_iface_recv_desc2_t*)_desc; \
+        uct_desc->lkey = ((uct_ib_mem2_t*)_hdr)->lkey; \
         if (ucs_unlikely((_desc) == NULL)) { \
             uct_iface_mpool_empty_warn(_iface, _mp); \
             _failure; \
@@ -468,6 +494,27 @@ typedef struct uct_iface_mpool_config {
         VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
     }
 
+#define UCT_TL_IFACE_GET_RX_DESC_WITH_CB(_iface, _mp, _desc, _failure, _cb, ...) \
+    { \
+        uct_base_iface_t *iface_p = _iface; \
+        uct_mem_h _hdr; \
+        uct_ib_iface_recv_desc2_t* uct_desc; \
+        _desc = iface_p->rx_buffers_agent_ops->get_buf(iface_p->rx_buffers_agent, iface_p->rx_buffers_agent_arg); \
+        _hdr = *(uct_mem_h*)(_desc); \
+        _cb(## __VA_ARGS__, _desc, _hdr); \
+        if (ucs_unlikely((_desc) == NULL)) { \
+            uct_iface_mpool_empty_warn(_iface, _mp); \
+            _failure; \
+        } \
+        \
+        VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
+    }    
+
+#define UCT_TL_IFACE_PUT_DESC_USING_AGENT(_iface, _desc) \
+    { \
+        uct_base_iface_t *iface_p = &_iface; \
+        iface_p->rx_buffers_agent_ops->put_buf(_desc); \
+    }
 
 #define UCT_TL_IFACE_PUT_DESC(_desc) \
     { \
