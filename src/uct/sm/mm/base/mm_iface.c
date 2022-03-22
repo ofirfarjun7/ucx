@@ -82,6 +82,30 @@ static ucs_status_t uct_mm_iface_get_address(uct_iface_t *tl_iface,
     return uct_mm_md_mapper_ops(md)->iface_addr_pack(md, iface_addr + 1);
 }
 
+static void uct_mm_iface_recv_desc_init(uct_iface_h tl_iface, void *obj,
+                                        uct_mem_h memh)
+{
+    uct_mm_iface_t     *iface = ucs_derived_of(tl_iface, uct_mm_iface_t);
+    uct_mm_recv_desc_t *desc  = obj;
+    uct_mm_seg_t        *seg  = memh;
+    size_t offset;
+
+    if (seg->length > UINT_MAX) {
+        ucs_error("mm: shared memory segment length cannot exceed %u", UINT_MAX);
+        desc->info.seg_id   = UINT64_MAX;
+        desc->info.seg_size = 0;
+        desc->info.offset   = 0;
+        return;
+    }
+
+    offset = UCS_PTR_BYTE_DIFF(seg->address, desc + 1) + iface->rx_headroom;
+    ucs_assert(offset <= UINT_MAX);
+
+    desc->info.seg_id   = seg->seg_id;
+    desc->info.seg_size = seg->length;
+    desc->info.offset   = offset;
+}
+
 static int
 uct_mm_iface_is_reachable(const uct_iface_h tl_iface,
                           const uct_device_addr_t *dev_addr,
@@ -231,7 +255,7 @@ uct_mm_assign_desc_to_fifo_elem(uct_mm_iface_t *iface,
         desc = iface->last_recv_desc;
     } else {
         UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, desc,
-                                 return UCS_ERR_NO_RESOURCE);
+                                 return UCS_ERR_NO_RESOURCE, uct_mm_iface_recv_desc_init, &iface->super.super.super);
     }
 
     elem->desc      = desc->info;
@@ -256,8 +280,8 @@ static UCS_F_ALWAYS_INLINE void uct_mm_iface_process_recv(uct_mm_iface_t *iface)
 
     /* check the memory pool to make sure that there is a new descriptor available */
     if (ucs_unlikely(iface->last_recv_desc == NULL)) {
-        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp,
-                                 iface->last_recv_desc, return);
+        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
+                                 return, uct_mm_iface_recv_desc_init, &iface->super.super.super);
     }
 
     /* read bcopy messages from the receive descriptors */
@@ -272,8 +296,8 @@ static UCS_F_ALWAYS_INLINE void uct_mm_iface_process_recv(uct_mm_iface_t *iface)
         /* assign a new receive descriptor to this FIFO element.*/
         uct_mm_assign_desc_to_fifo_elem(iface, elem, 0);
         /* the last_recv_desc is in use. get a new descriptor for it */
-        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp,
-                                 iface->last_recv_desc, ucs_debug("recv mpool is empty"));
+        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
+                                 ucs_debug("recv mpool is empty"), uct_mm_iface_recv_desc_init, &iface->super.super.super);
     }
 }
 
@@ -548,30 +572,6 @@ static uct_iface_internal_ops_t uct_mm_iface_internal_ops = {
     .ep_query            = (uct_ep_query_func_t)ucs_empty_function,
     .ep_invalidate       = (uct_ep_invalidate_func_t)ucs_empty_function_return_unsupported
 };
-
-static void uct_mm_iface_recv_desc_init(uct_iface_h tl_iface, void *obj,
-                                        uct_mem_h memh)
-{
-    uct_mm_iface_t     *iface = ucs_derived_of(tl_iface, uct_mm_iface_t);
-    uct_mm_recv_desc_t *desc  = obj;
-    uct_mm_seg_t        *seg  = memh;
-    size_t offset;
-
-    if (seg->length > UINT_MAX) {
-        ucs_error("mm: shared memory segment length cannot exceed %u", UINT_MAX);
-        desc->info.seg_id   = UINT64_MAX;
-        desc->info.seg_size = 0;
-        desc->info.offset   = 0;
-        return;
-    }
-
-    offset = UCS_PTR_BYTE_DIFF(seg->address, desc + 1) + iface->rx_headroom;
-    ucs_assert(offset <= UINT_MAX);
-
-    desc->info.seg_id   = seg->seg_id;
-    desc->info.seg_size = seg->length;
-    desc->info.offset   = offset;
-}
 
 static void uct_mm_iface_free_rx_descs(uct_mm_iface_t *iface, unsigned num_elems)
 {

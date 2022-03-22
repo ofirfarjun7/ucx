@@ -96,8 +96,8 @@ uct_rc_mlx5_iface_srq_set_seg(uct_rc_mlx5_iface_common_t *iface,
 
     desc_map = ~seg->srq.ptr_mask & UCS_MASK(iface->tm.mp.num_strides);
     ucs_for_each_bit(i, desc_map) {
-        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super.super, &iface->super.rx.mp,
-                                 desc, return UCS_ERR_NO_MEMORY);
+        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super.super, &iface->super.rx.mp, desc,
+                                 return UCS_ERR_NO_MEMORY, uct_ib_iface_recv_desc_init, &iface->super.super.super.super);
 
         /* Set receive data segment pointer. Length is pre-initialized. */
         hdr                = uct_ib_iface_recv_desc_hdr(&iface->super.super,
