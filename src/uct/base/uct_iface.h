@@ -287,6 +287,9 @@ typedef struct uct_base_iface {
     /* RX Buffers Agent Arg */
     void*                        rx_buffers_agent_arg;
 
+    /* RX Buffers Agent init cb */
+    void  (*uct_rx_buffers_agent_init_cb)(uct_iface_h tl_iface, void *obj, uct_mem_h memh);
+
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
 } uct_base_iface_t;
 
@@ -466,13 +469,15 @@ typedef struct uct_iface_mpool_config {
     }
 
 
-#define UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure, _init_cb, ...) \
+#define UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure, _init_cb) \
     { \
-        uct_base_iface_t *iface_p = _iface; \
+        uct_base_iface_t *_iface_p = _iface; \
         uct_mem_h _hdr; \
-        _desc = iface_p->rx_buffers_agent_ops->get_buf(iface_p->rx_buffers_agent, iface_p->rx_buffers_agent_arg); \
+        _desc = _iface_p->rx_buffers_agent_ops->get_buf(_iface_p->rx_buffers_agent, _iface_p->rx_buffers_agent_arg); \
         _hdr = *(uct_mem_h*)(_desc); \
-        _init_cb(__VA_ARGS__, _desc, _hdr); \
+        if ((void*)_init_cb != NULL) { \
+            _init_cb(&(_iface_p->super), _desc, _hdr); \
+        } \
         if (ucs_unlikely((_desc) == NULL)) { \
             uct_iface_mpool_empty_warn(_iface, _mp); \
             _failure; \

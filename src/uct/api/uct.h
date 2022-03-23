@@ -657,11 +657,11 @@ enum uct_iface_params_field {
     /** Enables @ref uct_iface_params_t::am_align_offset */
     UCT_IFACE_PARAM_FIELD_AM_ALIGN_OFFSET    = UCS_BIT(17),
     
-    /** Enables @ref uct_iface_params_t::rx_buffers_agent_ops */
-    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT_OPS    = UCS_BIT(18),
-    
     /** Enables @ref uct_iface_params_t::rx_buffers_agent */
-    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT    = UCS_BIT(19),
+    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT    = UCS_BIT(18),
+    
+    /** Enables @ref uct_iface_params_t::rx_buffers_agent_ops */
+    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT_OPS    = UCS_BIT(19),
     
     /** Enables @ref uct_iface_params_t::rx_buffers_agent_arg */
     UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT_ARG    = UCS_BIT(20)

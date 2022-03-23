@@ -1116,8 +1116,8 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
     worker->num_ifaces = num_ifaces;
     iface_id           = 0;
 
-    iface_params.rx_buffers_agent_ops = &worker->rx_buffers_agent_ops;
     iface_params.rx_buffers_agent = &worker->rx_buffers_agent;
+    iface_params.rx_buffers_agent_ops = &worker->rx_buffers_agent_ops;
 
     UCS_BITMAP_FOR_EACH_BIT(tl_bitmap, tl_id) {
         iface_params.field_mask = UCT_IFACE_PARAM_FIELD_OPEN_MODE;
@@ -1131,6 +1131,9 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
             iface_params.mode.device.tl_name  = resource->tl_rsc.tl_name;
             iface_params.mode.device.dev_name = resource->tl_rsc.dev_name;
         }
+
+        iface_params.field_mask          |= UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT;
+        iface_params.field_mask          |= UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT_OPS;
 
         status = ucp_worker_iface_open(worker, tl_id, &iface_params,
                                        &worker->ifaces[iface_id++]);
@@ -1268,6 +1271,7 @@ ucs_status_t ucp_worker_iface_open(ucp_worker_h worker, ucp_rsc_index_t tl_id,
     wiface->flags            = 0;
 
     iface_params->rx_buffers_agent_arg = wiface;
+    iface_params->field_mask          |= UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT_ARG;
 
     /* Read interface or md configuration */
     if (resource->flags & UCP_TL_RSC_FLAG_SOCKADDR) {
