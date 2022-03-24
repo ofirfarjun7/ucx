@@ -1053,6 +1053,7 @@ static ucs_status_t ucp_worker_create_ifaces_rx_buffers_agent(ucp_worker_h worke
 
     worker->rx_buffers_agent_ops.get_buf = ucp_worker_rx_buffers_agent_get;
     worker->rx_buffers_agent_ops.put_buf = ucp_worker_shared_mpool_put;
+    worker->rx_buffers_agent.ext = (void*)worker;
     //TODO - change agent's mpool init params to dynamic values
     ucs_mpool_init(
         &worker->rx_buffers_agent.mpool, 
@@ -1065,10 +1066,7 @@ static ucs_status_t ucp_worker_create_ifaces_rx_buffers_agent(ucp_worker_h worke
         &ucp_worker_ifaces_mpool_ops, 
         "rx_buffs_shared_mpool"
         );
-    //TODO - change grow num of elements to dynamic value
-    ucs_mpool_grow(&worker->rx_buffers_agent.mpool, 128);        
-    
-    worker->rx_buffers_agent.ext = (void*)worker;
+    ucs_mpool_grow(&worker->rx_buffers_agent.mpool, worker->rx_buffers_agent.mpool.data->elems_per_chunk);        
 
     return UCS_OK;
 }
