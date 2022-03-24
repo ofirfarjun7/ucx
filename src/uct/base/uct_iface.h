@@ -474,13 +474,14 @@ typedef struct uct_iface_mpool_config {
         uct_base_iface_t *_iface_p = _iface; \
         uct_mem_h _hdr; \
         _desc = _iface_p->rx_buffers_agent_ops->get_buf(_iface_p->rx_buffers_agent, _iface_p->rx_buffers_agent_arg); \
-        _hdr = *(uct_mem_h*)(_desc); \
-        if ((void*)_init_cb != NULL) { \
-            _init_cb(&(_iface_p->super), _desc, _hdr); \
-        } \
         if (ucs_unlikely((_desc) == NULL)) { \
             uct_iface_mpool_empty_warn(_iface, _mp); \
             _failure; \
+        } else { \
+            if ((void*)_init_cb != NULL) { \
+                _hdr = *(uct_mem_h*)(_desc); \
+                _init_cb(&(_iface_p->super), _desc, _hdr); \
+            } \
         } \
         \
         VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \

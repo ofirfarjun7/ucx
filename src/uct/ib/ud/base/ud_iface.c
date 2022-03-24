@@ -560,8 +560,10 @@ UCS_CLASS_INIT_FUNC(uct_ud_iface_t, uct_ud_iface_ops_t *ops,
     self->rx.available = ucs_min(config->ud_common.rx_queue_len_init,
                                  config->super.rx.queue_len);
     self->rx.quota     = config->super.rx.queue_len - self->rx.available;
-    //TODO - perform grow only when UCP rx buffers agent is not available
-    ucs_mpool_grow(&self->rx.mp, self->rx.available);
+    
+    if ((params->field_mask & UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT) == 0) {
+        ucs_mpool_grow(&self->rx.mp, self->rx.available);
+    }
 
     data_size = sizeof(uct_ud_ctl_hdr_t) + self->super.addr_size;
     data_size = ucs_max(data_size, self->super.config.seg_size);
