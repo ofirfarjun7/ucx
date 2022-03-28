@@ -254,8 +254,8 @@ uct_mm_assign_desc_to_fifo_elem(uct_mm_iface_t *iface,
     if (!need_new_desc) {
         desc = iface->last_recv_desc;
     } else {
-        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, desc,
-                                 return UCS_ERR_NO_RESOURCE, iface->super.super.uct_rx_buffers_agent_init_cb);
+        UCT_TL_IFACE_GET_RX_DESC_LEGACY(&iface->super.super, &iface->recv_desc_mp, desc,
+                                 return UCS_ERR_NO_RESOURCE);
     }
 
     elem->desc      = desc->info;
@@ -280,8 +280,8 @@ static UCS_F_ALWAYS_INLINE void uct_mm_iface_process_recv(uct_mm_iface_t *iface)
 
     /* check the memory pool to make sure that there is a new descriptor available */
     if (ucs_unlikely(iface->last_recv_desc == NULL)) {
-        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
-                                 return, iface->super.super.uct_rx_buffers_agent_init_cb);
+        UCT_TL_IFACE_GET_RX_DESC_LEGACY(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
+                                 return);
     }
 
     /* read bcopy messages from the receive descriptors */
@@ -296,8 +296,8 @@ static UCS_F_ALWAYS_INLINE void uct_mm_iface_process_recv(uct_mm_iface_t *iface)
         /* assign a new receive descriptor to this FIFO element.*/
         uct_mm_assign_desc_to_fifo_elem(iface, elem, 0);
         /* the last_recv_desc is in use. get a new descriptor for it */
-        UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
-                                 ucs_debug("recv mpool is empty"), iface->super.super.uct_rx_buffers_agent_init_cb);
+        UCT_TL_IFACE_GET_RX_DESC_LEGACY(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
+                                 ucs_debug("recv mpool is empty"));
     }
 }
 
@@ -774,14 +774,6 @@ static UCS_CLASS_INIT_FUNC(uct_mm_iface_t, uct_md_h md, uct_worker_h worker,
                                           &alignment, &align_offset);
     if (status != UCS_OK) {
         goto err_close_signal_fd;
-    }
-    
-    if ((params->field_mask & UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT) == 0) {
-        self->super.super.rx_buffers_agent_arg = &self->recv_desc_mp;
-    
-    } else {
-        //TODO - move mpool initialization to here 
-        self->super.super.uct_rx_buffers_agent_init_cb = uct_mm_iface_recv_desc_init;
     }
 
     /* create a memory pool for receive descriptors */

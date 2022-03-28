@@ -982,23 +982,12 @@ ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_
 
     md_map_p = ucp_memh->md_map;
     if (!(md_map_p & UCS_BIT(md_index))) {
+        //TODO - change error message?
         status = UCS_ERR_NO_RESOURCE;
         goto out;
     }
 
-    if (!uct_memh_idx_mem[md_index]) {
-        
-        ucs_for_each_bit(md_bit_idx, md_map_p) {
-            if (md_bit_idx == md_index) {
-                break;
-            }
-            ++uct_memh_idx;
-        }
-
-        uct_memh_idx_mem[md_index] = uct_memh_idx + 1;
-    }
-
-    *uct_memh = ucp_memh->uct[uct_memh_idx_mem[md_index] - 1];
+    *uct_memh = ucp_memh->uct[md_index];
 out:    
     return status;
 }

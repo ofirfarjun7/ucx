@@ -468,6 +468,16 @@ typedef struct uct_iface_mpool_config {
         VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
     }
 
+#define UCT_TL_IFACE_GET_RX_DESC_LEGACY(_iface, _mp, _desc, _failure) \
+    { \
+        _desc = ucs_mpool_get_inline(_mp); \
+        if (ucs_unlikely((_desc) == NULL)) { \
+            uct_iface_mpool_empty_warn(_iface, _mp); \
+            _failure; \
+        } \
+        \
+        VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
+    }
 
 #define UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure, _init_cb) \
     { \
