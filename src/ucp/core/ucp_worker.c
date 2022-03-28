@@ -971,9 +971,7 @@ static ucs_mpool_ops_t ucp_worker_ifaces_mpool_ops = {
 
 ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem, unsigned md_index, uct_mem_h* uct_memh) {
     ucs_status_t status = UCS_OK;
-    unsigned md_bit_idx;
     ucp_md_map_t md_map_p;
-    unsigned uct_memh_idx = 0;
 
     if (md_index >= UCP_MD_INDEX_BITS) {
         status = UCS_ERR_NO_DEVICE;
@@ -993,8 +991,8 @@ out:
 }
 
 
-UCS_PROFILE_FUNC(void*, ucp_worker_rx_buffers_agent_get, (agent, arg),
-                 void *agent, void* arg)
+UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_rx_buffers_agent_get, (agent, arg, buf),
+                 void *agent, void* arg, ucs_buffers_agent_buffer_t* buf)
 {
     ucp_context_h context;
     ucp_worker_h worker;
@@ -1003,17 +1001,17 @@ UCS_PROFILE_FUNC(void*, ucp_worker_rx_buffers_agent_get, (agent, arg),
     unsigned md_index;
     ucp_mem_h ucp_memh;
     void* obj;
-    ucp_shared_mpool_buf_hdr_t *buf;
+    ucp_shared_mpool_buf_hdr_t *m_buf_hdr;
     ucp_worker_buffers_agent_t *rx_buff_agent = (ucp_worker_buffers_agent_t*)agent;
 
     obj = ucs_mpool_get_inline(&rx_buff_agent->mpool);
 
     if (obj == NULL) {
         //TODO - alert/log maybe?
-        return obj;
+        return UCS_ERR_NO_ELEM;
     }
 
-    buf = (ucp_shared_mpool_buf_hdr_t*)obj;
+    m_buf_hdr = (ucp_shared_mpool_buf_hdr_t*)obj;
 
     wiface   = (ucp_worker_iface_t*)arg;
     worker   = wiface->worker;
@@ -1021,13 +1019,16 @@ UCS_PROFILE_FUNC(void*, ucp_worker_rx_buffers_agent_get, (agent, arg),
     resource = &context->tl_rscs[wiface->rsc_index];
     md_index = resource->md_index;
 
-    ucp_memh = buf->ucp_memh;
-    if (ucp_worker_get_uct_memh(ucp_memh, rx_buff_agent->uct_memh_idx_mem, md_index, &buf->uct_memh) != UCS_OK) {
+    ucp_memh = m_buf_hdr->ucp_memh;
+    if (ucp_worker_get_uct_memh(ucp_memh, rx_buff_agent->uct_memh_idx_mem, md_index, &m_buf_hdr->uct_memh) != UCS_OK) {
         //TODO - alert/log/put back in mpool maybe?
-        return NULL;
+        return UCS_ERR_NO_ELEM;
     }
 
-    return &buf->uct_memh;
+    buf->memh = m_buf_hdr->uct_memh;
+    buf->buf = &m_buf_hdr->uct_memh;
+
+    return UCS_OK;
 }
 
 UCS_PROFILE_FUNC_VOID(ucp_worker_shared_mpool_put, (obj),

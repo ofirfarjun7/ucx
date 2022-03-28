@@ -481,15 +481,18 @@ typedef struct uct_iface_mpool_config {
 
 #define UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure, _init_cb) \
     { \
-        uct_base_iface_t *_iface_p = _iface; \
+        ucs_status_t _buf_status; \
         uct_mem_h _hdr; \
-        _desc = _iface_p->rx_buffers_agent_ops->get_buf(_iface_p->rx_buffers_agent, _iface_p->rx_buffers_agent_arg); \
-        if (ucs_unlikely((_desc) == NULL)) { \
+        ucs_buffers_agent_buffer_t _buf; \
+        uct_base_iface_t *_iface_p = _iface; \
+        _buf_status = _iface_p->rx_buffers_agent_ops->get_buf(_iface_p->rx_buffers_agent, _iface_p->rx_buffers_agent_arg, &_buf); \
+        _desc = _buf.buf; \
+        if (_buf_status != UCS_OK) { \
             uct_iface_mpool_empty_warn(_iface, _mp); \
             _failure; \
         } else { \
             if ((void*)_init_cb != NULL) { \
-                _hdr = *(uct_mem_h*)(_desc); \
+                _hdr = _buf.memh; \
                 _init_cb(&(_iface_p->super), _desc, _hdr); \
             } \
         } \

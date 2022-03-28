@@ -13,6 +13,11 @@ BEGIN_C_DECLS
 
 /** @file ucs_buffers_agent.h */
 
+typedef struct ucs_buffers_agent_buffer {
+    uct_mem_h memh;
+    void* buf;
+} ucs_buffers_agent_buffer_t;
+
 typedef struct ucs_buffers_agent_ops {
     /**
      * Get an buffer from the memory allocation instance.
@@ -22,7 +27,7 @@ typedef struct ucs_buffers_agent_ops {
      *
      * @return       pointer to buff
      */
-    void* (*get_buf)(void* agent, void* arg);
+    ucs_status_t (*get_buf)(void* agent, void* arg, ucs_buffers_agent_buffer_t* buf);
 
     /**
      * Return an buffer to the memory allocation instance.

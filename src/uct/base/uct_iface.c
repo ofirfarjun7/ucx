@@ -491,9 +491,17 @@ UCS_CLASS_CLEANUP_FUNC(uct_iface_t)
 UCS_CLASS_DEFINE(uct_iface_t, void);
 
 
-static void* uct_base_iface_rx_buffers_default_agent_get(void* agent, void* arg) {
+static ucs_status_t uct_base_iface_rx_buffers_default_agent_get(void* agent, void* arg, ucs_buffers_agent_buffer_t* buf) {
+    void *obj;
     ucs_mpool_t *mp = arg;
-    return ucs_mpool_get_inline(mp);
+    obj = ucs_mpool_get_inline(mp);
+    if (obj == NULL) {
+        return UCS_ERR_NO_ELEM;
+    }
+    
+    buf->buf = obj;
+
+    return UCS_OK;
 }
 
 static void uct_base_iface_rx_buffers_default_agent_put(void *buf) {
