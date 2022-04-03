@@ -66,7 +66,7 @@ uct_rc_verbs_iface_handle_am(uct_rc_iface_t *iface, uct_rc_hdr_t *hdr,
                                      length - sizeof(*hdr), UCT_CB_PARAM_FLAG_DESC);
     }
     if (ucs_likely(status == UCS_OK)) {
-        ucs_mpool_put_inline(desc);
+        UCT_TL_IFACE_PUT_DESC_USING_AGENT(iface->super.super, desc);
     } else {
         udesc = (char*)desc + iface->super.config.rx_headroom_offset;
         uct_recv_desc(udesc) = &iface->super.release_desc;

@@ -236,7 +236,7 @@ typedef struct ucp_shared_mpool_buf_hdr {
 typedef struct ucp_buffers_agent {
     ucs_mpool_t mpool;
     void* ext;
-    unsigned uct_memh_idx_mem[UCP_MD_INDEX_BITS];
+    unsigned payload_offset;
 } ucp_worker_buffers_agent_t;
 
 

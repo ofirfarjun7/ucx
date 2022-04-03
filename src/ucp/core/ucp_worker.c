@@ -921,26 +921,23 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_ifaces_mp_chunk_alloc, (mp, size_p, ch
 {   
     ucs_status_t status;
     ucp_mem_map_params_t params;
-    ucp_mem_h memh;
+    ucp_mem_h memh = NULL;
     ucp_worker_buffers_agent_t *agent = (ucp_worker_buffers_agent_t*)mp;
     ucp_context_h context = ((ucp_worker_h)(agent->ext))->context;
     ucp_shared_mpool_chunk_hdr_t *chunk_hdr;
     size_t chunk_size = (*size_p) + sizeof(*chunk_hdr);
 
-    if ((status = ucs_mpool_chunk_malloc(mp, &chunk_size, chunk_p)) != UCS_OK) {
+    params.field_mask = UCP_MEM_MAP_PARAM_FIELD_LENGTH | UCP_MEM_MAP_PARAM_FIELD_FLAGS;
+    params.flags = UCP_MEM_MAP_ALLOCATE;
+    params.length     = chunk_size;
+    params.address    = NULL;
+    if ((status = ucp_mem_map(context, &params, &memh)) != UCS_OK) {
         return status;
     }
 
-    params.field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS |
-                            UCP_MEM_MAP_PARAM_FIELD_LENGTH;
-    params.address    = *chunk_p;
-    params.length     = chunk_size;
-    status = ucp_mem_map(context, &params, &memh);
-    
-    chunk_hdr = *chunk_p;
+    chunk_hdr = memh->address;
     chunk_hdr->memh = memh;
     *chunk_p = chunk_hdr + 1;
-
     return status;
 }
 
@@ -950,7 +947,6 @@ UCS_PROFILE_FUNC_VOID(ucp_worker_ifaces_mp_chunk_release, (mp, chunk),
     ucp_worker_buffers_agent_t *agent = (ucp_worker_buffers_agent_t*)mp;
     ucp_shared_mpool_chunk_hdr_t *chunk_hdr = UCS_PTR_BYTE_OFFSET(chunk, -sizeof(ucp_shared_mpool_chunk_hdr_t));
     ucp_mem_unmap(((ucp_worker_h)agent->ext)->context, chunk_hdr->memh);
-    ucs_mpool_chunk_free(mp, (void*)chunk_hdr);
 }
 
 static void ucp_worker_ifaces_mp_obj_init(ucs_mpool_t *mp, void *obj, void *chunk)
@@ -969,7 +965,7 @@ static ucs_mpool_ops_t ucp_worker_ifaces_mpool_ops = {
     .obj_str       = NULL
 };
 
-ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem, unsigned md_index, uct_mem_h* uct_memh) {
+ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned md_index, uct_mem_h* uct_memh) {
     ucs_status_t status = UCS_OK;
     ucp_md_map_t md_map_p;
 
@@ -1020,7 +1016,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_rx_buffers_agent_get, (agent, arg, buf
     md_index = resource->md_index;
 
     ucp_memh = m_buf_hdr->ucp_memh;
-    if (ucp_worker_get_uct_memh(ucp_memh, rx_buff_agent->uct_memh_idx_mem, md_index, &m_buf_hdr->uct_memh) != UCS_OK) {
+    if (ucp_worker_get_uct_memh(ucp_memh, md_index, &m_buf_hdr->uct_memh) != UCS_OK) {
         //TODO - alert/log/put back in mpool maybe?
         return UCS_ERR_NO_ELEM;
     }
@@ -1045,6 +1041,7 @@ static ucs_status_t ucp_worker_create_ifaces_rx_buffers_agent(ucp_worker_h worke
     worker->rx_buffers_agent_ops.put_buf = ucp_worker_shared_mpool_put;
     worker->rx_buffers_agent.ext = (void*)worker;
     //TODO - change agent's mpool init params to dynamic values
+    worker->rx_buffers_agent.payload_offset = 12;
     ucs_mpool_init(
         &worker->rx_buffers_agent.mpool, 
         16, 
