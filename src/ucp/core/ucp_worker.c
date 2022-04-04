@@ -965,9 +965,11 @@ static ucs_mpool_ops_t ucp_worker_ifaces_mpool_ops = {
     .obj_str       = NULL
 };
 
-ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned md_index, uct_mem_h* uct_memh) {
+ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem, unsigned md_index, uct_mem_h* uct_memh) {
     ucs_status_t status = UCS_OK;
     ucp_md_map_t md_map_p;
+    unsigned uct_memh_idx = 0;
+    unsigned md_bit_idx = 0;
 
     if (md_index >= UCP_MD_INDEX_BITS) {
         status = UCS_ERR_NO_DEVICE;
@@ -980,8 +982,18 @@ ucs_status_t ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned md_index, uct_
         status = UCS_ERR_NO_RESOURCE;
         goto out;
     }
+    if (!uct_memh_idx_mem[md_index]) {
+        ucs_for_each_bit(md_bit_idx, md_map_p) {
+            if (md_bit_idx == md_index) {
+                break;
+            }
+            ++uct_memh_idx;
+        }
 
-    *uct_memh = ucp_memh->uct[md_index];
+        uct_memh_idx_mem[md_index] = uct_memh_idx + 1;
+    }
+
+    *uct_memh = ucp_memh->uct[uct_memh_idx_mem[md_index] - 1];
 out:    
     return status;
 }
@@ -1000,6 +1012,14 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_rx_buffers_agent_get, (agent, arg, buf
     ucp_shared_mpool_buf_hdr_t *m_buf_hdr;
     ucp_worker_buffers_agent_t *rx_buff_agent = (ucp_worker_buffers_agent_t*)agent;
 
+    if (buf == NULL) {
+        //TODO - alert/log maybe?
+        return UCS_ERR_NO_ELEM;
+    }
+    
+    buf->buf = NULL;
+    buf->memh = NULL;
+
     obj = ucs_mpool_get_inline(&rx_buff_agent->mpool);
 
     if (obj == NULL) {
@@ -1016,7 +1036,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_rx_buffers_agent_get, (agent, arg, buf
     md_index = resource->md_index;
 
     ucp_memh = m_buf_hdr->ucp_memh;
-    if (ucp_worker_get_uct_memh(ucp_memh, md_index, &m_buf_hdr->uct_memh) != UCS_OK) {
+    if (ucp_worker_get_uct_memh(ucp_memh, rx_buff_agent->uct_memh_idx_mem, md_index, &m_buf_hdr->uct_memh) != UCS_OK) {
         //TODO - alert/log/put back in mpool maybe?
         return UCS_ERR_NO_ELEM;
     }

@@ -256,6 +256,8 @@ uct_mm_assign_desc_to_fifo_elem(uct_mm_iface_t *iface,
     } else {
         UCT_TL_IFACE_GET_RX_DESC_LEGACY(&iface->super.super, &iface->recv_desc_mp, desc,
                                  return UCS_ERR_NO_RESOURCE);
+        // UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, desc,
+        //                          return UCS_ERR_NO_RESOURCE, iface->super.super.uct_rx_buffers_agent_init_cb);
     }
 
     elem->desc      = desc->info;
@@ -282,6 +284,8 @@ static UCS_F_ALWAYS_INLINE void uct_mm_iface_process_recv(uct_mm_iface_t *iface)
     if (ucs_unlikely(iface->last_recv_desc == NULL)) {
         UCT_TL_IFACE_GET_RX_DESC_LEGACY(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
                                  return);
+        // UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
+        //                          return, iface->super.super.uct_rx_buffers_agent_init_cb);
     }
 
     /* read bcopy messages from the receive descriptors */
@@ -298,6 +302,8 @@ static UCS_F_ALWAYS_INLINE void uct_mm_iface_process_recv(uct_mm_iface_t *iface)
         /* the last_recv_desc is in use. get a new descriptor for it */
         UCT_TL_IFACE_GET_RX_DESC_LEGACY(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
                                  ucs_debug("recv mpool is empty"));
+        // UCT_TL_IFACE_GET_RX_DESC(&iface->super.super, &iface->recv_desc_mp, iface->last_recv_desc,
+        //                          ucs_debug("recv mpool is empty"), iface->super.super.uct_rx_buffers_agent_init_cb);
     }
 }
 
@@ -790,6 +796,8 @@ static UCS_CLASS_INIT_FUNC(uct_mm_iface_t, uct_md_h md, uct_worker_h worker,
 
     /* set the first receive descriptor */
     self->last_recv_desc = ucs_mpool_get(&self->recv_desc_mp);
+    // UCT_TL_IFACE_GET_RX_DESC(&self->super.super, &self->recv_desc_mp, self->last_recv_desc,
+    //                              status = UCS_ERR_NO_RESOURCE; goto destroy_recv_mpool, self->super.super.uct_rx_buffers_agent_init_cb);
     VALGRIND_MAKE_MEM_DEFINED(self->last_recv_desc, sizeof(*(self->last_recv_desc)));
     if (self->last_recv_desc == NULL) {
         ucs_error("failed to get the first receive descriptor");

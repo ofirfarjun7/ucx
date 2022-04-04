@@ -838,7 +838,7 @@ ucp_recv_desc_init(ucp_worker_h worker, void *data, size_t length,
 }
 
 static UCS_F_ALWAYS_INLINE void
-ucp_recv_desc_release(ucp_recv_desc_t *rdesc)
+ucp_recv_desc_release(ucp_worker_h worker, ucp_recv_desc_t *rdesc)
 {
     void *desc = UCS_PTR_BYTE_OFFSET(rdesc, -rdesc->release_desc_offset);
 
@@ -846,7 +846,9 @@ ucp_recv_desc_release(ucp_recv_desc_t *rdesc)
 
     if (ucs_unlikely(rdesc->flags & UCP_RECV_DESC_FLAG_UCT_DESC)) {
         /* uct desc is slowpath */
-        uct_iface_release_desc(desc);
+        desc = (char*)desc - worker->rx_buffers_agent.payload_offset;
+        worker->rx_buffers_agent_ops.put_buf(desc);
+        // uct_iface_release_desc(desc);
     } else {
         ucs_mpool_set_put_inline(desc);
     }
@@ -868,7 +870,7 @@ ucp_request_complete_am_recv(ucp_request_t *req, ucs_status_t status)
          */
         req->recv.am.desc->flags &= ~UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS;
     } else {
-        ucp_recv_desc_release(req->recv.am.desc);
+        ucp_recv_desc_release(req->recv.worker, req->recv.am.desc);
     }
 
     /* Coverity wrongly resolves completion callback function to
