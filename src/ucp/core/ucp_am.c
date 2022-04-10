@@ -441,6 +441,7 @@ ucp_am_bcopy_pack_data(void *buffer, ucp_request_t *req, size_t length)
         /* Pack user header to the end of message/fragment */
         user_hdr = UCS_PTR_BYTE_OFFSET(buffer, payload_length);
         ucp_am_pack_user_header(user_hdr, req);
+        ucs_mpool_set_put_inline(req->send.msg_proto.am.header);
     }
 
     return user_header_length +
@@ -853,6 +854,7 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
     size_t rndv_thresh;
     size_t zcopy_thresh;
     ucs_status_t status;
+    void *user_header = NULL;
 
     if (ucs_unlikely((count != 0) && (user_header_length != 0))) {
         /*
@@ -910,6 +912,19 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
         if (ucs_unlikely(status != UCS_OK)) {
             return UCS_STATUS_PTR(status);
         }
+
+    } else if (((req->send.uct.func == proto->bcopy_single) ||
+        (req->send.uct.func == proto->bcopy_multi)) &&
+        (req->send.msg_proto.am.header_length != 0)) {
+        
+        user_header = ucs_mpool_set_get_inline(&req->send.ep->worker->am_mps, req->send.msg_proto.am.header_length);
+        if (ucs_unlikely(user_header == NULL)) {
+            status = UCS_ERR_NO_MEMORY;
+            return UCS_STATUS_PTR(status);
+        }
+
+        memcpy(user_header, req->send.msg_proto.am.header, req->send.msg_proto.am.header_length);
+        req->send.msg_proto.am.header = user_header;
     }
 
     /* Start the request.
