@@ -441,7 +441,15 @@ ucp_am_bcopy_pack_data(void *buffer, ucp_request_t *req, size_t length)
         /* Pack user header to the end of message/fragment */
         user_hdr = UCS_PTR_BYTE_OFFSET(buffer, payload_length);
         ucp_am_pack_user_header(user_hdr, req);
-        ucs_mpool_set_put_inline(req->send.msg_proto.am.header);
+
+        if ((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) && 
+            (req->send.msg_proto.am.mp_hdr_buf)) {
+            ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0);
+            ucs_assert(req->send.msg_proto.am.header_length != 0);
+            ucs_assert(req->send.state.dt.offset == 0);
+            ucs_mpool_set_put_inline(req->send.msg_proto.am.header);
+            req->send.msg_proto.am.mp_hdr_buf = 0;
+        }
     }
 
     return user_header_length +
@@ -854,7 +862,6 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
     size_t rndv_thresh;
     size_t zcopy_thresh;
     ucs_status_t status;
-    void *user_header = NULL;
 
     if (ucs_unlikely((count != 0) && (user_header_length != 0))) {
         /*
@@ -906,6 +913,11 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
         }
     }
 
+    req->send.msg_proto.am.flags ^= ((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) &&
+                                    (!(req->send.msg_proto.am.header_length) || 
+                                    ((req->send.uct.func != proto->bcopy_single) && (req->send.uct.func != proto->bcopy_multi)))) 
+                                    ? UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED : 0;
+    
     if ((req->send.uct.func == proto->zcopy_single) ||
         (req->send.uct.func == proto->zcopy_multi)) {
         status = ucp_am_zcopy_pack_user_header(req);
@@ -913,18 +925,6 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
             return UCS_STATUS_PTR(status);
         }
 
-    } else if (((req->send.uct.func == proto->bcopy_single) ||
-        (req->send.uct.func == proto->bcopy_multi)) &&
-        (req->send.msg_proto.am.header_length != 0)) {
-        
-        user_header = ucs_mpool_set_get_inline(&req->send.ep->worker->am_mps, req->send.msg_proto.am.header_length);
-        if (ucs_unlikely(user_header == NULL)) {
-            status = UCS_ERR_NO_MEMORY;
-            return UCS_STATUS_PTR(status);
-        }
-
-        memcpy(user_header, req->send.msg_proto.am.header, req->send.msg_proto.am.header_length);
-        req->send.msg_proto.am.header = user_header;
     }
 
     /* Start the request.
@@ -1035,6 +1035,8 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_am_send_nbx,
     req = ucp_request_get_param(worker, param,
                                 {ret = UCS_STATUS_PTR(UCS_ERR_NO_MEMORY);
                                  goto out;});
+
+    req->send.msg_proto.am.mp_hdr_buf = 0;
 
     if (worker->context->config.ext.proto_enable) {
         req->send.msg_proto.am.am_id         = id;
