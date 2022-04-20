@@ -295,19 +295,16 @@ static ucs_status_t ucp_request_am_bcopy_copy_user_header(ucp_request_t* req) {
     ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0);
     ucs_assert((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) != 0);
     ucs_assert(req->send.msg_proto.am.header_length != 0);
-    
-    if (req->send.state.dt.offset) {
-        return UCS_OK;    
-    }
-
+    ucs_assert(req->send.state.dt.offset == 0);
     ucs_assert(req->send.msg_proto.am.mp_hdr_buf == 0);
 
     user_header = ucs_mpool_set_get_inline(&req->send.ep->worker->am_mps, req->send.msg_proto.am.header_length);
     if (ucs_unlikely(user_header == NULL)) {
         return UCS_ERR_NO_MEMORY;
     }
-    req->send.msg_proto.am.mp_hdr_buf = 1;
     memcpy(user_header, req->send.msg_proto.am.header, req->send.msg_proto.am.header_length);
+    req->send.msg_proto.am.mp_hdr_buf = 1;
+    req->send.msg_proto.am.flags ^= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
     req->send.msg_proto.am.header = user_header;
 
     return UCS_OK;

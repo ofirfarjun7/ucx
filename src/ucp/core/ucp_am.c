@@ -441,14 +441,17 @@ ucp_am_bcopy_pack_data(void *buffer, ucp_request_t *req, size_t length)
         /* Pack user header to the end of message/fragment */
         user_hdr = UCS_PTR_BYTE_OFFSET(buffer, payload_length);
         ucp_am_pack_user_header(user_hdr, req);
-
-        if ((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) && 
-            (req->send.msg_proto.am.mp_hdr_buf)) {
-            ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0);
-            ucs_assert(req->send.msg_proto.am.header_length != 0);
-            ucs_assert(req->send.state.dt.offset == 0);
+        ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0);    
+        if (req->send.msg_proto.am.mp_hdr_buf) {
+            ucs_assert((req->flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) == 0);
+            ucs_assert(req->send.state.dt.offset == 0);            
             ucs_mpool_set_put_inline(req->send.msg_proto.am.header);
             req->send.msg_proto.am.mp_hdr_buf = 0;
+
+        }
+
+        if (req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) {
+            req->send.msg_proto.am.flags ^= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
         }
     }
 
