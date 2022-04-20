@@ -292,7 +292,7 @@ ucs_mpool_ops_t ucp_rndv_get_mpool_ops = {
 static ucs_status_t ucp_request_am_bcopy_copy_user_header(ucp_request_t* req) {
     void *user_header;
 
-    ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0);
+    ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0); //TODO - remove asserts
     ucs_assert((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) != 0);
     ucs_assert(req->send.msg_proto.am.header_length != 0);
     ucs_assert(req->send.state.dt.offset == 0);
@@ -304,7 +304,7 @@ static ucs_status_t ucp_request_am_bcopy_copy_user_header(ucp_request_t* req) {
     }
     memcpy(user_header, req->send.msg_proto.am.header, req->send.msg_proto.am.header_length);
     req->send.msg_proto.am.mp_hdr_buf = 1;
-    req->send.msg_proto.am.flags ^= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
+    req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
     req->send.msg_proto.am.header = user_header;
 
     return UCS_OK;
@@ -322,7 +322,7 @@ int ucp_request_pending_add(ucp_request_t *req)
     if ((req->flags & UCP_REQUEST_FLAG_SEND_AM) &&
         (req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED)) {
 
-        ucp_request_am_bcopy_copy_user_header(req);   
+        ucp_request_am_bcopy_copy_user_header(req);
     }
 
     status = uct_ep_pending_add(uct_ep, &req->send.uct, 0);

@@ -799,6 +799,110 @@ UCS_TEST_P(test_ucp_am_nbx, rx_am_mpools,
 UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx)
 
 
+class test_ucp_am_nbx_send_with_header_copy : public test_ucp_am_nbx {
+protected:
+    void test_am_send_recv_copy_header(size_t size, size_t header_size = 0ul,
+                           unsigned flags = 0, unsigned data_cb_flags = 0, unsigned bcopy = 1) //TODO - remove bcopy param
+    {
+        mem_buffer sbuf(size, tx_memtype());
+        sbuf.pattern_fill(SEED);
+        m_hdr.resize(header_size);
+        ucs::fill_random(m_hdr);
+        ucp_mem_h memh = NULL;
+        ucs_status_ptr_t sptr = NULL;
+        const ucs_status_ptr_t send_completed = NULL;
+        ucp::data_type_desc_t sdt_desc(m_dt, sbuf.ptr(), size);
+
+        if (prereg()) {
+            memh = sender().mem_map(sbuf.ptr(), size);
+        }
+        
+        test_am_send_recv(0, max_am_hdr()); // warmup for wireup
+
+        set_am_data_handler(receiver(), TEST_AM_NBX_ID, am_data_cb_for_non_pending, this,
+                                    data_cb_flags);
+        while (sptr == send_completed) {    //TODO - varify that this condition gurrantee oveflow of send queue
+            sptr = send_am(sdt_desc, get_send_flag() | flags,
+                                            m_hdr.data(), m_hdr.size(), memh);
+        }
+
+        ucp_request_t *req = ((ucp_request_t*)sptr) - 1;
+        if (bcopy) {
+            if (flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) {
+                if (req->send.state.dt.offset) {
+                    EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); //TODO - describe why this check is true
+                } else {
+                    EXPECT_NE(req->send.msg_proto.am.header, m_hdr.data());
+                }
+            } else {
+                EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); 
+            }    
+        } else { //TODO - maybe can remove check for zcopy
+            EXPECT_NE(req->send.msg_proto.am.header, m_hdr.data());
+        }
+
+        test_ucp_am_nbx *p = this;
+        while (progress());
+        set_am_data_handler(receiver(), TEST_AM_NBX_ID, am_data_cb, p,
+                                    data_cb_flags);
+        sender().progress();
+        wait_for_flag(&m_am_received);
+        request_wait(sptr);
+
+        if (prereg()) {
+            sender().mem_unmap(memh);
+        }
+
+    }
+
+    static ucs_status_t am_data_cb_for_non_pending(void *arg, const void *header,
+                                   size_t header_length, void *data,
+                                   size_t length,
+                                   const ucp_am_recv_param_t *param)
+    {
+        test_ucp_am_nbx_send_with_header_copy *self = reinterpret_cast<test_ucp_am_nbx_send_with_header_copy*>(arg);
+        return self->am_data_handler_for_non_pending(header, header_length, data, length, param);
+    }
+
+    virtual ucs_status_t am_data_handler_for_non_pending(const void *header,
+                                         size_t header_length,
+                                         void *data, size_t length,
+                                         const ucp_am_recv_param_t *rx_param)
+    {
+        check_header(header, header_length);
+        
+        if (!(rx_param->recv_attr &
+            (UCP_AM_RECV_ATTR_FLAG_RNDV | UCP_AM_RECV_ATTR_FLAG_DATA))) {
+            mem_buffer::pattern_check(data, length, SEED);
+        }
+
+        m_am_received = true;
+        return UCS_OK;
+    }
+};
+
+UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, bcopy_single, has_transport("self"), "ZCOPY_THRESH=-1",
+                                                  "RNDV_THRESH=-1")
+{
+    unsigned flags = 0;
+    test_am_send_recv_copy_header(fragment_size() / 2, max_am_hdr(), flags);
+    flags |= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
+    test_am_send_recv_copy_header(fragment_size() / 2, max_am_hdr(), flags);
+}
+
+
+UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, bcopy_multi, has_transport("self"), "ZCOPY_THRESH=-1",
+                                                  "RNDV_THRESH=-1")
+{
+    unsigned flags = 0;
+    test_am_send_recv_copy_header(fragment_size() * 2, max_am_hdr(), flags);
+    flags |= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
+    test_am_send_recv_copy_header(fragment_size() * 2, max_am_hdr(), flags);
+}
+
+
+UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx_send_with_header_copy)
+
 class test_ucp_am_nbx_closed_ep : public test_ucp_am_nbx {
 protected:
     virtual ucp_ep_params_t get_ep_params()

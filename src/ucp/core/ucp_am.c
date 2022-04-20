@@ -450,9 +450,7 @@ ucp_am_bcopy_pack_data(void *buffer, ucp_request_t *req, size_t length)
 
         }
 
-        if (req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) {
-            req->send.msg_proto.am.flags ^= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
-        }
+        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
     }
 
     return user_header_length +
@@ -916,10 +914,12 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
         }
     }
 
-    req->send.msg_proto.am.flags ^= ((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) &&
-                                    (!(req->send.msg_proto.am.header_length) || 
-                                    ((req->send.uct.func != proto->bcopy_single) && (req->send.uct.func != proto->bcopy_multi)))) 
-                                    ? UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED : 0;
+    //TODO - what about rndv?
+    if (!(req->send.msg_proto.am.header_length) ||
+        ((req->send.uct.func != proto->bcopy_single) && (req->send.uct.func != proto->bcopy_multi))) {
+        
+        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
+    }
     
     if ((req->send.uct.func == proto->zcopy_single) ||
         (req->send.uct.func == proto->zcopy_multi)) {
