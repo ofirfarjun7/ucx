@@ -800,17 +800,66 @@ UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx)
 
 
 class test_ucp_am_nbx_send_with_header_copy : public test_ucp_am_nbx {
+public:
+    ~test_ucp_am_nbx_send_with_header_copy() { 
+        if (memh != NULL && prereg()) {
+            unmap_memh();
+        }
+    }
+    
+    test_ucp_am_nbx_send_with_header_copy() { 
+        memh = NULL;
+    }
+private:
+    static const ucs_status_ptr_t send_completed;
+    ucp_mem_h memh;
+
+    void unmap_memh() {
+        sender().mem_unmap(memh);
+        memh = NULL;
+    }
 protected:
-    void test_am_send_recv_copy_header(size_t size, size_t header_size = 0ul,
+    void test_am_send_recv_check_pending_header(ucs_status_ptr_t sptr, unsigned flags = 0, unsigned data_cb_flags = 0) {
+        
+        if (sptr == send_completed) {
+            if (prereg()) {
+                unmap_memh();
+            }
+            return;
+        }
+
+        ucp_request_t *req = ((ucp_request_t*)sptr) - 1;
+        
+        if (flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) {
+            if (req->send.state.dt.offset) {
+                EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); //TODO - describe why this check is true
+            } else {
+                EXPECT_NE(req->send.msg_proto.am.header, m_hdr.data());
+            }
+        } else {
+            EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data());
+        }  
+
+        while (progress());
+        set_am_data_handler(receiver(), TEST_AM_NBX_ID, am_data_cb, this,
+                                    data_cb_flags);
+        sender().progress();
+        wait_for_flag(&m_am_received);
+        request_wait(sptr);
+
+        if (prereg()) {
+            unmap_memh();
+        }
+    }
+    
+    ucs_status_ptr_t test_am_send_recv_overflow_sq(size_t size, size_t header_size = 0ul,
                            unsigned flags = 0, unsigned data_cb_flags = 0)
     {
         mem_buffer sbuf(size, tx_memtype());
         sbuf.pattern_fill(SEED);
         m_hdr.resize(header_size);
         ucs::fill_random(m_hdr);
-        ucp_mem_h memh = NULL;
         ucs_status_ptr_t sptr = NULL;
-        const ucs_status_ptr_t send_completed = NULL;
         ucp::data_type_desc_t sdt_desc(m_dt, sbuf.ptr(), size);
 
         if (prereg()) {
@@ -826,29 +875,7 @@ protected:
                                             m_hdr.data(), m_hdr.size(), memh);
         }
 
-        ucp_request_t *req = ((ucp_request_t*)sptr) - 1;
-        if (flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) {
-            if (req->send.state.dt.offset) {
-                EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); //TODO - describe why this check is true
-            } else {
-                EXPECT_NE(req->send.msg_proto.am.header, m_hdr.data());
-            }
-        } else {
-            EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); 
-        }  
-
-        test_ucp_am_nbx *p = this;
-        while (progress());
-        set_am_data_handler(receiver(), TEST_AM_NBX_ID, am_data_cb, p,
-                                    data_cb_flags);
-        sender().progress();
-        wait_for_flag(&m_am_received);
-        request_wait(sptr);
-
-        if (prereg()) {
-            sender().mem_unmap(memh);
-        }
-
+        return sptr;
     }
 
     static ucs_status_t am_data_cb_for_non_pending(void *arg, const void *header,
@@ -877,25 +904,29 @@ protected:
     }
 };
 
+const ucs_status_ptr_t test_ucp_am_nbx_send_with_header_copy::send_completed = NULL;
+
 UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, bcopy_single, has_transport("self"), "ZCOPY_THRESH=-1",
                                                   "RNDV_THRESH=-1")
 {
     unsigned flags = 0;
-    test_am_send_recv_copy_header(fragment_size() / 2, max_am_hdr(), flags);
+    ucs_status_ptr_t pending_sptr = test_am_send_recv_overflow_sq(fragment_size() / 2, max_am_hdr(), flags);
+    test_am_send_recv_check_pending_header(pending_sptr, flags);
     flags |= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
-    test_am_send_recv_copy_header(fragment_size() / 2, max_am_hdr(), flags);
+    pending_sptr = test_am_send_recv_overflow_sq(fragment_size() / 2, max_am_hdr(), flags);
+    test_am_send_recv_check_pending_header(pending_sptr, flags);
 }
-
 
 UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, bcopy_multi, has_transport("self"), "ZCOPY_THRESH=-1",
                                                   "RNDV_THRESH=-1")
 {
     unsigned flags = 0;
-    test_am_send_recv_copy_header(fragment_size() * 2, max_am_hdr(), flags);
+    ucs_status_ptr_t pending_sptr = test_am_send_recv_overflow_sq(fragment_size() * 2, max_am_hdr(), flags);
+    test_am_send_recv_check_pending_header(pending_sptr, flags);
     flags |= UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
-    test_am_send_recv_copy_header(fragment_size() * 2, max_am_hdr(), flags);
+    pending_sptr = test_am_send_recv_overflow_sq(fragment_size() * 2, max_am_hdr(), flags);
+    test_am_send_recv_check_pending_header(pending_sptr, flags);
 }
-
 
 UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx_send_with_header_copy)
 
