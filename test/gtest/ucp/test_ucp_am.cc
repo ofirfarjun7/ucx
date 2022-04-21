@@ -802,7 +802,7 @@ UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx)
 class test_ucp_am_nbx_send_with_header_copy : public test_ucp_am_nbx {
 protected:
     void test_am_send_recv_copy_header(size_t size, size_t header_size = 0ul,
-                           unsigned flags = 0, unsigned data_cb_flags = 0, unsigned bcopy = 1) //TODO - remove bcopy param
+                           unsigned flags = 0, unsigned data_cb_flags = 0)
     {
         mem_buffer sbuf(size, tx_memtype());
         sbuf.pattern_fill(SEED);
@@ -827,19 +827,15 @@ protected:
         }
 
         ucp_request_t *req = ((ucp_request_t*)sptr) - 1;
-        if (bcopy) {
-            if (flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) {
-                if (req->send.state.dt.offset) {
-                    EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); //TODO - describe why this check is true
-                } else {
-                    EXPECT_NE(req->send.msg_proto.am.header, m_hdr.data());
-                }
+        if (flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) {
+            if (req->send.state.dt.offset) {
+                EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); //TODO - describe why this check is true
             } else {
-                EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); 
-            }    
-        } else { //TODO - maybe can remove check for zcopy
-            EXPECT_NE(req->send.msg_proto.am.header, m_hdr.data());
-        }
+                EXPECT_NE(req->send.msg_proto.am.header, m_hdr.data());
+            }
+        } else {
+            EXPECT_EQ(req->send.msg_proto.am.header, m_hdr.data()); 
+        }  
 
         test_ucp_am_nbx *p = this;
         while (progress());
