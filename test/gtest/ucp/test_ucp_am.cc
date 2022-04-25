@@ -819,14 +819,14 @@ private:
                            unsigned flags = 0, unsigned data_cb_flags = 0) {
         ucs_status_ptr_t pending_sptr = NULL;
 
-        //warmup
+        //warmup for wireup connection
         pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
                                             m_hdr_copy.data(), header_size, memh);
         wait_for_flag(&m_am_received);
         request_wait(pending_sptr);
         pending_sptr = NULL;
 
-        while (pending_sptr == send_completed) {    //TODO - varify that this condition gurrantee send queue is full
+        while (pending_sptr == send_completed) {
             pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
                                             m_hdr_copy.data(), header_size, memh);
         }
@@ -873,15 +873,12 @@ protected:
                            unsigned flags = 0, unsigned data_cb_flags = 0) {
         mem_buffer sbuf(size, tx_memtype());
         sbuf.pattern_fill(SEED);
-
         m_hdr_copy.resize(header_size*2);
         ucs::fill_random(m_hdr_copy);
         m_hdr = m_hdr_copy;
-
         ucs_status_ptr_t rndv_pending_sptr = NULL;
         ucs_status_ptr_t pending_sptr = NULL;
         req_counter = 0;
-
         ucp::data_type_desc_t sdt_desc(m_dt, sbuf.ptr(), size);                               
         ucp_mem_h memh;
 

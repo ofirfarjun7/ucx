@@ -369,11 +369,14 @@ ucp_am_pack_user_header(void *buffer, ucp_request_t *req)
     ucp_dt_pack(req->send.ep->worker, ucp_dt_make_contig(1),
                 UCS_MEMORY_TYPE_HOST, buffer, req->send.msg_proto.am.header,
                 &hdr_state, req->send.msg_proto.am.header_length);
+
     if (req->send.msg_proto.am.flags & UCP_AM_SEND_PRIV_FLAG_FREE_HEADER) {
         ucs_assert((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_COPY_HEADER) == 0);     
         ucs_mpool_set_put_inline(req->send.msg_proto.am.header);
         req->send.msg_proto.am.flags &= ~UCP_AM_SEND_PRIV_FLAG_FREE_HEADER;
     }
+
+    req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_COPY_HEADER;
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -445,8 +448,6 @@ ucp_am_bcopy_pack_data(void *buffer, ucp_request_t *req, size_t length)
         /* Pack user header to the end of message/fragment */
         user_hdr = UCS_PTR_BYTE_OFFSET(buffer, payload_length);
         ucp_am_pack_user_header(user_hdr, req);
-
-        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_COPY_HEADER;
     }
 
     return user_header_length +
@@ -910,7 +911,6 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
         }
     }
 
-    //TODO - what about rndv?
     if (!(req->send.msg_proto.am.header_length) ||
         ((req->send.uct.func != proto->bcopy_single) && 
          (req->send.uct.func != proto->bcopy_multi) &&
