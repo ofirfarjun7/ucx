@@ -805,11 +805,13 @@ private:
     bool m_rndv_am_received;
     size_t req_counter = 0;
     size_t cb_counter = 0;
+    std::string m_hdr_copy;
 
-    void check_header(const void *header, size_t header_length, std::string &pattern)
+    void check_header(const void *header, size_t header_length)
     {
+        std::string expected_hdr = m_hdr_copy.substr(0, header_length);
         std::string check_pattern((char*)header, header_length);
-        EXPECT_EQ(check_pattern, pattern);
+        EXPECT_EQ(check_pattern, expected_hdr);
     }
 
     ucs_status_ptr_t send_am(const ucp::data_type_desc_t &dt_desc,
@@ -819,27 +821,35 @@ private:
         req_counter++;
         return test_ucp_am_nbx::send_am(dt_desc, flags, hdr, hdr_length, memh);
     }
-protected:
-    void progress_pending(ucs_status_ptr_t sptr, unsigned flags = 0, unsigned data_cb_flags = 0) {
-        //TODO - lfix progress_pending
-        progress();
-        wait_for_flag(&m_am_received);
-        request_wait(sptr);
-    }
-    
-    void progress_pending_rndv(ucs_status_ptr_t sptr, unsigned flags = 0, unsigned data_cb_flags = 0) {
-        wait_for_flag(&m_rndv_am_received);
-        request_wait(sptr);
-    }
 
+    ucs_status_ptr_t fill_sq(ucp::data_type_desc_t &sdt_desc, const ucp_mem_h memh, size_t header_size = 0ul,
+                           unsigned flags = 0, unsigned data_cb_flags = 0) {
+        ucs_status_ptr_t pending_sptr = NULL;
+        m_am_received = false;
+
+        //warmup
+        pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
+                                            m_hdr.data(), header_size, memh);
+        wait_for_flag(&m_am_received);
+        request_wait(pending_sptr);
+        m_am_received = false;
+        pending_sptr = NULL;
+
+        while (pending_sptr == send_completed) {    //TODO - varify that this condition gurrantee send queue is full
+            pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
+                                            m_hdr.data(), header_size, memh);
+        }
+
+        return pending_sptr;
+    }    
+protected:
     void check_bcopy(size_t size, size_t header_size = 0ul,
                            unsigned flags = 0, unsigned data_cb_flags = 0) {
         mem_buffer sbuf(size, tx_memtype());
         sbuf.pattern_fill(SEED);
-        std::string m_bcopy_hdr;
-        m_bcopy_hdr.resize(header_size);
-        ucs::fill_random(m_bcopy_hdr);
-        m_hdr = m_bcopy_hdr;
+        m_hdr.resize(header_size);
+        ucs::fill_random(m_hdr);
+        m_hdr_copy = m_hdr;
         ucs_status_ptr_t pending_sptr = NULL;
         req_counter = 0;
         cb_counter = 0;
@@ -854,20 +864,9 @@ protected:
         set_am_data_handler(receiver(), TEST_AM_NBX_ID, am_data_cb, this,
                                     data_cb_flags);
 
-        //wormup
-        pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_bcopy_hdr.data(), header_size, memh);
-        wait_for_flag(&m_am_received);
-        request_wait(pending_sptr);
-        m_am_received = false;
-        pending_sptr = NULL;
+        pending_sptr = fill_sq(sdt_desc, memh, header_size, get_send_flag() | flags, data_cb_flags);
 
-        while (pending_sptr == send_completed) {    //TODO - varify that this condition gurrantee send queue is full
-            pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_bcopy_hdr.data(), header_size, memh);
-        }
-
-        ucs::fill_random(m_bcopy_hdr);
+        ucs::fill_random(m_hdr);
 
         while(progress());
         wait_for_flag(&m_am_received);
@@ -884,17 +883,15 @@ protected:
         mem_buffer sbuf(size, tx_memtype());
         sbuf.pattern_fill(SEED);
 
-        std::string m_bcopy_hdr;
-        m_bcopy_hdr.resize(header_size*2);
-        ucs::fill_random(m_bcopy_hdr);
-        m_hdr = m_bcopy_hdr;
+        m_hdr.resize(header_size*2);
+        ucs::fill_random(m_hdr);
+        m_hdr_copy = m_hdr;
 
         ucs_status_ptr_t rndv_pending_sptr = NULL;
         ucs_status_ptr_t pending_sptr = NULL;
-        req_counter = 0;
-
         m_rndv_am_received = false;
         m_am_received = false;
+        req_counter = 0;
 
         ucp::data_type_desc_t sdt_desc(m_dt, sbuf.ptr(), size);                               
         ucp_mem_h memh;
@@ -905,22 +902,13 @@ protected:
 
         set_am_data_handler(receiver(), TEST_AM_NBX_ID, am_data_cb, this,
                                     data_cb_flags);
-        pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_bcopy_hdr.data(), header_size, memh);
-        wait_for_flag(&m_am_received);
-        request_wait(pending_sptr);
-        m_am_received = false;
 
-        pending_sptr = NULL;
-        while (pending_sptr == send_completed) {    //TODO - varify that this condition gurrantee send queue is full
-            pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_bcopy_hdr.data(), header_size, memh);
-        }
+        pending_sptr = fill_sq(sdt_desc, memh, header_size, get_send_flag() | flags, data_cb_flags);
 
         rndv_pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_bcopy_hdr.data(), header_size*2, memh);
+                                            m_hdr.data(), header_size*2, memh);
 
-        ucs::fill_random(m_bcopy_hdr);
+        ucs::fill_random(m_hdr);
 
         progress();
         wait_for_flag(&m_am_received);
@@ -973,11 +961,10 @@ protected:
                                          const ucp_am_recv_param_t *rx_param)
     {
         ucs_status_t status;
-        std::string expected_hdr = m_hdr.substr(0, header_length);
 
         // EXPECT_FALSE(m_am_received);
         m_am_received = false;
-        check_header(header, header_length, expected_hdr);
+        check_header(header, header_length);
 
         bool has_reply_ep = get_send_flag();
 
