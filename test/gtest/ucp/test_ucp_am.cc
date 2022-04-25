@@ -869,7 +869,7 @@ protected:
         ucs::fill_random(m_hdr);
 
         while(progress());
-        wait_for_flag(&m_am_received);
+        wait_for_value(&cb_counter, req_counter);
         request_wait(pending_sptr);
         EXPECT_EQ(req_counter, cb_counter);
 
@@ -910,11 +910,11 @@ protected:
 
         ucs::fill_random(m_hdr);
 
-        progress();
-        wait_for_flag(&m_am_received);
+        while(progress());
+        wait_for_value(&cb_counter, req_counter);
         request_wait(pending_sptr);
         m_am_received = false;
-        wait_for_flag(&m_rndv_am_received);
+        wait_for_value(&cb_counter, req_counter);
         request_wait(rndv_pending_sptr);
 
         EXPECT_EQ(req_counter, cb_counter);
