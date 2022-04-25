@@ -70,7 +70,7 @@ ucp_do_am_single(uct_pending_req_t *self, uint8_t am_id,
         ucs_assertv((packed_len >= 0) && (packed_len <= max_packed_size),
                     "packed_len=%zd max_packed_size=%zu", packed_len,
                     max_packed_size);
-
+        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_COPY_HEADER;
         return uct_ep_am_short(ep->uct_eps[req->send.lane], am_id, buffer[0],
                                &buffer[1], packed_len - sizeof(uint64_t));
     } else {

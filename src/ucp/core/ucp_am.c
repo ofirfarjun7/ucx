@@ -369,6 +369,11 @@ ucp_am_pack_user_header(void *buffer, ucp_request_t *req)
     ucp_dt_pack(req->send.ep->worker, ucp_dt_make_contig(1),
                 UCS_MEMORY_TYPE_HOST, buffer, req->send.msg_proto.am.header,
                 &hdr_state, req->send.msg_proto.am.header_length);
+    if (req->send.msg_proto.am.flags & UCP_AM_SEND_PRIV_FLAG_FREE_HEADER) {
+        ucs_assert((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_COPY_HEADER) == 0);     
+        ucs_mpool_set_put_inline(req->send.msg_proto.am.header);
+        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_PRIV_FLAG_FREE_HEADER;
+    }
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -385,7 +390,6 @@ ucp_am_zcopy_pack_user_header(ucp_request_t *req)
         ucs_assert(req->send.msg_proto.am.header != NULL);
         ucp_am_pack_user_header(reg_desc + 1, req);
     }
-
     req->send.msg_proto.am.reg_desc = reg_desc;
 
     return UCS_OK;
@@ -441,16 +445,8 @@ ucp_am_bcopy_pack_data(void *buffer, ucp_request_t *req, size_t length)
         /* Pack user header to the end of message/fragment */
         user_hdr = UCS_PTR_BYTE_OFFSET(buffer, payload_length);
         ucp_am_pack_user_header(user_hdr, req);
-        ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0);    
-        if (req->send.msg_proto.am.mp_hdr_buf) {
-            ucs_assert((req->flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) == 0);
-            ucs_assert(req->send.state.dt.offset == 0);            
-            ucs_mpool_set_put_inline(req->send.msg_proto.am.header);
-            req->send.msg_proto.am.mp_hdr_buf = 0;
 
-        }
-
-        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
+        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_COPY_HEADER;
     }
 
     return user_header_length +
@@ -916,11 +912,12 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
 
     //TODO - what about rndv?
     if (!(req->send.msg_proto.am.header_length) ||
-        ((req->send.uct.func != proto->bcopy_single) && (req->send.uct.func != proto->bcopy_multi))) {
-        
-        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
+        ((req->send.uct.func != proto->bcopy_single) && 
+         (req->send.uct.func != proto->bcopy_multi) &&
+         (req->send.uct.func != ucp_proto_progress_am_rndv_rts))) {
+        req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_COPY_HEADER;
     }
-    
+
     if ((req->send.uct.func == proto->zcopy_single) ||
         (req->send.uct.func == proto->zcopy_multi)) {
         status = ucp_am_zcopy_pack_user_header(req);
@@ -1038,8 +1035,6 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_am_send_nbx,
     req = ucp_request_get_param(worker, param,
                                 {ret = UCS_STATUS_PTR(UCS_ERR_NO_MEMORY);
                                  goto out;});
-
-    req->send.msg_proto.am.mp_hdr_buf = 0;
 
     if (worker->context->config.ext.proto_enable) {
         req->send.msg_proto.am.am_id         = id;

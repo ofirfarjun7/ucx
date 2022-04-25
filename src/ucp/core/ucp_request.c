@@ -291,20 +291,15 @@ ucs_mpool_ops_t ucp_rndv_get_mpool_ops = {
 
 static ucs_status_t ucp_request_am_bcopy_copy_user_header(ucp_request_t* req) {
     void *user_header;
-
-    ucs_assert((req->flags & UCP_REQUEST_FLAG_SEND_AM) != 0); //TODO - remove asserts
-    ucs_assert((req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED) != 0);
     ucs_assert(req->send.msg_proto.am.header_length != 0);
-    ucs_assert(req->send.state.dt.offset == 0);
-    ucs_assert(req->send.msg_proto.am.mp_hdr_buf == 0);
-
+    ucs_assert(!(req->send.msg_proto.am.flags & UCP_AM_SEND_PRIV_FLAG_FREE_HEADER));
     user_header = ucs_mpool_set_get_inline(&req->send.ep->worker->am_mps, req->send.msg_proto.am.header_length);
     if (ucs_unlikely(user_header == NULL)) {
         return UCS_ERR_NO_MEMORY;
     }
     memcpy(user_header, req->send.msg_proto.am.header, req->send.msg_proto.am.header_length);
-    req->send.msg_proto.am.mp_hdr_buf = 1;
-    req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED;
+    req->send.msg_proto.am.flags |= UCP_AM_SEND_PRIV_FLAG_FREE_HEADER;
+    req->send.msg_proto.am.flags &= ~UCP_AM_SEND_FLAG_COPY_HEADER;
     req->send.msg_proto.am.header = user_header;
 
     return UCS_OK;
@@ -320,9 +315,11 @@ int ucp_request_pending_add(ucp_request_t *req)
 
     uct_ep = req->send.ep->uct_eps[req->send.lane];
     if ((req->flags & UCP_REQUEST_FLAG_SEND_AM) &&
-        (req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED)) {
+        (req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_COPY_HEADER)) {
 
-        ucp_request_am_bcopy_copy_user_header(req);
+        if (ucs_unlikely((status = ucp_request_am_bcopy_copy_user_header(req)) != UCS_OK)) {
+            goto error;
+        }
     }
 
     status = uct_ep_pending_add(uct_ep, &req->send.uct, 0);
@@ -336,6 +333,7 @@ int ucp_request_pending_add(ucp_request_t *req)
         return 0;
     }
 
+error:
     /* Unexpected error while adding to pending */
     ucs_fatal("invalid return status from uct_ep_pending_add(): %s",
               ucs_status_string(status));

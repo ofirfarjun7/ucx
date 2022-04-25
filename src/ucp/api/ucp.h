@@ -591,7 +591,13 @@ enum ucp_send_am_flags {
     UCP_AM_SEND_FLAG_RNDV  = UCS_BIT(2),             /**< Force UCP to use only
                                                           rendezvous protocol for
                                                           AM sends. */
-    UCP_AM_SEND_FLAG_VALID_HEADER_NOT_GUARANTEED  = UCS_BIT(3),     /**< Valid user header during send operation is not guaranteed*/
+    UCP_AM_SEND_FLAG_COPY_HEADER  = UCS_BIT(3),     /**< Valid user header during send 
+                                                         operation is not guaranteed, 
+                                                         Signal UCP to copy it when needed*/
+    UCP_AM_SEND_PRIV_FLAG_FREE_HEADER  = UCS_BIT(4),     /**< Internal UCP Flag, 
+                                                              mark that user header was
+                                                              copied to internal UCP buf and
+                                                              need to be released.*/
     UCP_AM_SEND_REPLY      = UCP_AM_SEND_FLAG_REPLY  /**< Backward compatibility. */
 };
 
