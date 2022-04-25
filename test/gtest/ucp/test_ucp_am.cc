@@ -405,8 +405,9 @@ protected:
 
     void check_header(const void *header, size_t header_length)
     {
+        std::string expected_hdr = m_hdr.substr(0, header_length);
         std::string check_pattern((char*)header, header_length);
-        EXPECT_EQ(check_pattern, m_hdr);
+        EXPECT_EQ(check_pattern, expected_hdr);
     }
 
     ucs_status_ptr_t send_am(const ucp::data_type_desc_t &dt_desc,
@@ -799,20 +800,12 @@ UCS_TEST_P(test_ucp_am_nbx, rx_am_mpools,
 UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx)
 
 
-class test_ucp_am_nbx_send_with_header_copy : public test_ucp_am_nbx {
+class test_ucp_am_nbx_send_copy_header : public test_ucp_am_nbx {
 private:
     static const ucs_status_ptr_t send_completed;
-    bool m_rndv_am_received;
     size_t req_counter = 0;
     size_t cb_counter = 0;
     std::string m_hdr_copy;
-
-    void check_header(const void *header, size_t header_length)
-    {
-        std::string expected_hdr = m_hdr_copy.substr(0, header_length);
-        std::string check_pattern((char*)header, header_length);
-        EXPECT_EQ(check_pattern, expected_hdr);
-    }
 
     ucs_status_ptr_t send_am(const ucp::data_type_desc_t &dt_desc,
                             unsigned flags = 0, const void *hdr = NULL,
@@ -825,31 +818,29 @@ private:
     ucs_status_ptr_t fill_sq(ucp::data_type_desc_t &sdt_desc, const ucp_mem_h memh, size_t header_size = 0ul,
                            unsigned flags = 0, unsigned data_cb_flags = 0) {
         ucs_status_ptr_t pending_sptr = NULL;
-        m_am_received = false;
 
         //warmup
         pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_hdr.data(), header_size, memh);
+                                            m_hdr_copy.data(), header_size, memh);
         wait_for_flag(&m_am_received);
         request_wait(pending_sptr);
-        m_am_received = false;
         pending_sptr = NULL;
 
         while (pending_sptr == send_completed) {    //TODO - varify that this condition gurrantee send queue is full
             pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_hdr.data(), header_size, memh);
+                                            m_hdr_copy.data(), header_size, memh);
         }
 
         return pending_sptr;
     }    
 protected:
-    void check_bcopy(size_t size, size_t header_size = 0ul,
+    void check_eager(size_t size, size_t header_size = 0ul,
                            unsigned flags = 0, unsigned data_cb_flags = 0) {
         mem_buffer sbuf(size, tx_memtype());
         sbuf.pattern_fill(SEED);
-        m_hdr.resize(header_size);
-        ucs::fill_random(m_hdr);
-        m_hdr_copy = m_hdr;
+        m_hdr_copy.resize(header_size);
+        ucs::fill_random(m_hdr_copy);
+        m_hdr = m_hdr_copy;
         ucs_status_ptr_t pending_sptr = NULL;
         req_counter = 0;
         cb_counter = 0;
@@ -866,7 +857,7 @@ protected:
 
         pending_sptr = fill_sq(sdt_desc, memh, header_size, get_send_flag() | flags, data_cb_flags);
 
-        ucs::fill_random(m_hdr);
+        ucs::fill_random(m_hdr_copy);
 
         while(progress());
         wait_for_value(&cb_counter, req_counter);
@@ -883,14 +874,12 @@ protected:
         mem_buffer sbuf(size, tx_memtype());
         sbuf.pattern_fill(SEED);
 
-        m_hdr.resize(header_size*2);
-        ucs::fill_random(m_hdr);
-        m_hdr_copy = m_hdr;
+        m_hdr_copy.resize(header_size*2);
+        ucs::fill_random(m_hdr_copy);
+        m_hdr = m_hdr_copy;
 
         ucs_status_ptr_t rndv_pending_sptr = NULL;
         ucs_status_ptr_t pending_sptr = NULL;
-        m_rndv_am_received = false;
-        m_am_received = false;
         req_counter = 0;
 
         ucp::data_type_desc_t sdt_desc(m_dt, sbuf.ptr(), size);                               
@@ -906,14 +895,13 @@ protected:
         pending_sptr = fill_sq(sdt_desc, memh, header_size, get_send_flag() | flags, data_cb_flags);
 
         rndv_pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
-                                            m_hdr.data(), header_size*2, memh);
+                                            m_hdr_copy.data(), header_size*2, memh);
 
-        ucs::fill_random(m_hdr);
+        ucs::fill_random(m_hdr_copy);
 
         while(progress());
         wait_for_value(&cb_counter, req_counter);
         request_wait(pending_sptr);
-        m_am_received = false;
         wait_for_value(&cb_counter, req_counter);
         request_wait(rndv_pending_sptr);
 
@@ -928,32 +916,10 @@ protected:
                                    size_t length,
                                    const ucp_am_recv_param_t *param)
     {   
-        test_ucp_am_nbx_send_with_header_copy *self = reinterpret_cast<test_ucp_am_nbx_send_with_header_copy*>(arg);
+        test_ucp_am_nbx_send_copy_header *self = reinterpret_cast<test_ucp_am_nbx_send_copy_header*>(arg);
         return self->am_data_handler(header, header_length, data, length, param);
     }
 
-    void am_recv_check_data(size_t length)
-    {
-        ASSERT_FALSE(m_rndv_am_received);
-        m_rndv_am_received = true;
-        mem_buffer::pattern_check(m_rx_buf, length, SEED, rx_memtype());
-        if (m_rx_memh != NULL) {
-            receiver().mem_unmap(m_rx_memh);
-        }
-
-        mem_buffer::release(m_rx_buf, rx_memtype());
-    }
-
-    static void am_data_recv_cb(void *request, ucs_status_t status,
-                                size_t length, void *user_data)
-    {
-        // test_ucp_am_nbx *self = reinterpret_cast<test_ucp_am_nbx*>(user_data);
-        test_ucp_am_nbx_send_with_header_copy *self = reinterpret_cast<test_ucp_am_nbx_send_with_header_copy*>(user_data);
-
-        EXPECT_UCS_OK(status);
-
-        self->am_recv_check_data(length);
-    }
 
     virtual ucs_status_t am_data_handler(const void *header,
                                          size_t header_length,
@@ -961,89 +927,48 @@ protected:
                                          const ucp_am_recv_param_t *rx_param)
     {
         ucs_status_t status;
-
-        // EXPECT_FALSE(m_am_received);
         m_am_received = false;
-        check_header(header, header_length);
-
-        bool has_reply_ep = get_send_flag();
-
-        EXPECT_EQ(has_reply_ep, rx_param->recv_attr &
-                                UCP_AM_RECV_ATTR_FIELD_REPLY_EP);
-        EXPECT_EQ(has_reply_ep, rx_param->reply_ep != NULL);
-
-        if (!(rx_param->recv_attr &
-            (UCP_AM_RECV_ATTR_FLAG_RNDV))) {
-            mem_buffer::pattern_check(data, length, SEED);
-            m_am_received = true;
-            cb_counter++;
-            return UCS_OK;
-        }
-
-        m_rx_buf = mem_buffer::allocate(length, rx_memtype());
-        mem_buffer::pattern_fill(m_rx_buf, length, 0ul, rx_memtype());
-
-        m_rx_dt_desc.make(m_rx_dt, m_rx_buf, length);
-
-        uint32_t imm_compl_flag = UCP_OP_ATTR_FLAG_NO_IMM_CMPL *
-                                  (ucs::rand() % 2);
-        size_t rx_length = SIZE_MAX;
-        ucp_request_param_t params;
-        params.op_attr_mask = UCP_OP_ATTR_FIELD_CALLBACK |
-                              UCP_OP_ATTR_FIELD_USER_DATA |
-                              UCP_OP_ATTR_FIELD_DATATYPE |
-                              UCP_OP_ATTR_FIELD_RECV_INFO |
-                              imm_compl_flag;
-        params.datatype     = m_rx_dt_desc.dt();
-        params.cb.recv_am   = am_data_recv_cb;
-        params.user_data    = this;
-        params.recv_info.length = &rx_length;
-
-        if (prereg()) {
-            params.op_attr_mask |= UCP_OP_ATTR_FIELD_MEMH;
-            m_rx_memh            = receiver().mem_map(m_rx_buf, length);
-            params.memh          = m_rx_memh;
-        }
-
-        ucs_status_ptr_t sp = ucp_am_recv_data_nbx(receiver().worker(),
-                                                   data, m_rx_dt_desc.buf(),
-                                                   m_rx_dt_desc.count(),
-                                                   &params);
-        if (UCS_PTR_IS_PTR(sp)) {
-            ucp_request_release(sp);
-            cb_counter++;
-            status = UCS_INPROGRESS;
-        } else {
-            EXPECT_EQ(NULL, sp);
-            EXPECT_EQ(length, rx_length);
-            cb_counter++;
-            am_recv_check_data(rx_length);
-            status = UCS_OK;
-        }
-
+        status = test_ucp_am_nbx::am_data_handler(header, header_length, data, length, rx_param);
+        cb_counter++;
         return status;
     }
-};
+}; 
 
-const ucs_status_ptr_t test_ucp_am_nbx_send_with_header_copy::send_completed = NULL;
+const ucs_status_ptr_t test_ucp_am_nbx_send_copy_header::send_completed = NULL;
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, bcopy_single, has_transport("self"), "ZCOPY_THRESH=-1",
+UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, send_short, has_transport("self"), "ZCOPY_THRESH=-1",
                                                   "RNDV_THRESH=-1")
 {
     unsigned flags = 0;
     flags |= UCP_AM_SEND_FLAG_COPY_HEADER;
-    check_bcopy(fragment_size() / 2, 16, flags);
+    check_eager(8, 8, flags);
 }
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, bcopy_multi, has_transport("self"), "ZCOPY_THRESH=-1",
+UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, bcopy_single, has_transport("self"), "ZCOPY_THRESH=-1",
                                                   "RNDV_THRESH=-1")
 {
     unsigned flags = 0;
     flags |= UCP_AM_SEND_FLAG_COPY_HEADER;
-    check_bcopy(fragment_size() * 2, max_am_hdr(), flags);
+    check_eager(fragment_size() / 2, 16, flags);
 }
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, rndv, has_transport("self"), "ZCOPY_THRESH=4096",
+UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, bcopy_multi, has_transport("self"), "ZCOPY_THRESH=-1",
+                                                  "RNDV_THRESH=-1")
+{
+    unsigned flags = 0;
+    flags |= UCP_AM_SEND_FLAG_COPY_HEADER;
+    check_eager(fragment_size() * 2, max_am_hdr(), flags);
+}
+
+UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, zcopy, has_transport("self"), "ZCOPY_THRESH=0",
+                                                  "RNDV_THRESH=256")
+{
+    unsigned flags = 0;
+    flags |= UCP_AM_SEND_FLAG_COPY_HEADER;
+    check_eager(64, 64, flags);
+}
+
+UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, rndv, has_transport("self"), "ZCOPY_THRESH=4096",
                                                   "RNDV_THRESH=4096")
 {
     unsigned flags = 0;
@@ -1051,7 +976,7 @@ UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_with_header_copy, rndv, has_transport(
     check_rndv(2048, 1024, flags);
 }
 
-UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx_send_with_header_copy)
+UCP_INSTANTIATE_TEST_CASE(test_ucp_am_nbx_send_copy_header)
 
 class test_ucp_am_nbx_closed_ep : public test_ucp_am_nbx {
 protected:
