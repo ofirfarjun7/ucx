@@ -986,6 +986,12 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_am_send_nbx,
     UCP_WORKER_THREAD_CS_ENTER_CONDITIONAL(worker);
 
     flags     = ucp_request_param_flags(param);
+    if (flags >= UCP_AM_SEND_PRIV_FLAG_FIRST_FLAG) {
+        ucs_error("unsupported flags requested for UCP AM send: 0x%x",
+                  flags);
+        ret = UCS_STATUS_PTR(UCS_ERR_INVALID_PARAM);
+        goto out;
+    }
     attr_mask = param->op_attr_mask &
                 (UCP_OP_ATTR_FIELD_DATATYPE | UCP_OP_ATTR_FLAG_NO_IMM_CMPL);
 

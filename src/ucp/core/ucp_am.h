@@ -28,6 +28,14 @@ enum {
 };
 
 
+enum {
+    UCP_AM_SEND_PRIV_FLAG_FIRST_FLAG  = UCS_BIT(15),
+
+    /* Indicates that user header was copied to internal UCP buf and need to be released. */
+    UCP_AM_SEND_PRIV_FLAG_FREE_HEADER = UCP_AM_SEND_PRIV_FLAG_FIRST_FLAG
+};
+
+
 /**
  * Data that is stored about each callback registered with a worker
  */
