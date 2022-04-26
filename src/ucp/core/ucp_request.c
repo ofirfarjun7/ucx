@@ -289,7 +289,7 @@ ucs_mpool_ops_t ucp_rndv_get_mpool_ops = {
     .obj_str       = NULL
 };
 
-static ucs_status_t ucp_request_am_bcopy_copy_user_header(ucp_request_t* req) {
+static UCS_F_ALWAYS_INLINE ucs_status_t ucp_request_am_bcopy_copy_user_header(ucp_request_t* req) {
     void *user_header;
     ucs_assert(req->send.msg_proto.am.header_length != 0);
     ucs_assert(!(req->send.msg_proto.am.flags & UCP_AM_SEND_PRIV_FLAG_FREE_HEADER));

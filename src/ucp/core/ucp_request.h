@@ -194,7 +194,6 @@ struct ucp_request {
                             uint32_t       header_length;
                             uint16_t       am_id;
                             uint16_t       flags;
-                            uint8_t        mp_hdr_buf;
                         } am;
                     };
                 } msg_proto;
