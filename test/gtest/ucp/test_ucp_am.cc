@@ -817,6 +817,7 @@ private:
 
     ucs_status_ptr_t fill_sq(ucp::data_type_desc_t &sdt_desc, const ucp_mem_h memh, size_t header_size = 0ul,
                            unsigned flags = 0, unsigned data_cb_flags = 0) {
+        double timeout = 5;
         ucs_status_ptr_t pending_sptr = NULL;
 
         //warmup for wireup connection
@@ -826,7 +827,9 @@ private:
         request_wait(pending_sptr);
         pending_sptr = NULL;
 
-        while (pending_sptr == send_completed) {
+        ucs_time_t deadline = ucs_get_time() +
+                              ucs_time_from_sec(timeout) * ucs::test_time_multiplier();
+        while ((ucs_get_time() < deadline) && pending_sptr == send_completed) {
             pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
                                             m_hdr_copy.data(), header_size, memh);
         }
@@ -856,6 +859,10 @@ protected:
                                     data_cb_flags);
 
         pending_sptr = fill_sq(sdt_desc, memh, header_size, get_send_flag() | flags, data_cb_flags);
+
+        if (pending_sptr == send_completed) {
+            UCS_TEST_MESSAGE <<"Failed to get pending request";
+        }
 
         ucs::fill_random(m_hdr_copy);
 
@@ -890,6 +897,10 @@ protected:
                                     data_cb_flags);
 
         pending_sptr = fill_sq(sdt_desc, memh, header_size, get_send_flag() | flags, data_cb_flags);
+
+        if (pending_sptr == send_completed) {
+            UCS_TEST_MESSAGE <<"Failed to get pending request";
+        }
 
         rndv_pending_sptr = send_am(sdt_desc, get_send_flag() | flags,
                                             m_hdr_copy.data(), header_size*2, memh);
@@ -933,7 +944,7 @@ protected:
 
 const ucs_status_ptr_t test_ucp_am_nbx_send_copy_header::send_completed = NULL;
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, send_short, has_transport("self"), "ZCOPY_THRESH=-1",
+UCS_TEST_P(test_ucp_am_nbx_send_copy_header, send_short, "ZCOPY_THRESH=-1",
                                                   "RNDV_THRESH=-1")
 {
     unsigned flags = 0;
@@ -941,7 +952,7 @@ UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, send_short, has_transport
     check_eager(8, 8, flags);
 }
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, bcopy_single, has_transport("self"), "ZCOPY_THRESH=-1",
+UCS_TEST_P(test_ucp_am_nbx_send_copy_header, bcopy_single, "ZCOPY_THRESH=-1",
                                                   "RNDV_THRESH=-1")
 {
     unsigned flags = 0;
@@ -949,7 +960,7 @@ UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, bcopy_single, has_transpo
     check_eager(fragment_size() / 2, 16, flags);
 }
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, bcopy_multi, has_transport("self"), "ZCOPY_THRESH=-1",
+UCS_TEST_P(test_ucp_am_nbx_send_copy_header, bcopy_multi, "ZCOPY_THRESH=-1",
                                                   "RNDV_THRESH=-1")
 {
     unsigned flags = 0;
@@ -957,7 +968,7 @@ UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, bcopy_multi, has_transpor
     check_eager(fragment_size() * 2, max_am_hdr(), flags);
 }
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, zcopy, has_transport("self"), "ZCOPY_THRESH=0",
+UCS_TEST_P(test_ucp_am_nbx_send_copy_header, zcopy, "ZCOPY_THRESH=0",
                                                   "RNDV_THRESH=256")
 {
     unsigned flags = 0;
@@ -965,7 +976,7 @@ UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, zcopy, has_transport("sel
     check_eager(64, 64, flags);
 }
 
-UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, rndv, has_transport("self"), "ZCOPY_THRESH=4096",
+UCS_TEST_P(test_ucp_am_nbx_send_copy_header, rndv, "ZCOPY_THRESH=4096",
                                                   "RNDV_THRESH=4096")
 {
     unsigned flags = 0;
