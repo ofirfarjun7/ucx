@@ -582,19 +582,19 @@ enum ucp_am_cb_flags {
  * routines.
  */
 enum ucp_send_am_flags {
-    UCP_AM_SEND_FLAG_REPLY = UCS_BIT(0),             /**< Force relevant reply
-                                                          endpoint to be passed to
-                                                          the data callback on the
-                                                          receiver. */
-    UCP_AM_SEND_FLAG_EAGER = UCS_BIT(1),             /**< Force UCP to use only
-                                                          eager protocol for AM sends. */
-    UCP_AM_SEND_FLAG_RNDV  = UCS_BIT(2),             /**< Force UCP to use only
-                                                          rendezvous protocol for
-                                                          AM sends. */
-    UCP_AM_SEND_FLAG_COPY_HEADER  = UCS_BIT(3),      /**< Valid user header during send 
-                                                          operation is not guaranteed, 
-                                                          Signal UCP to copy it when needed*/
-    UCP_AM_SEND_REPLY      = UCP_AM_SEND_FLAG_REPLY  /**< Backward compatibility. */
+    UCP_AM_SEND_FLAG_REPLY       = UCS_BIT(0),             /**< Force relevant reply
+                                                                endpoint to be passed to
+                                                                the data callback on the
+                                                                receiver. */
+    UCP_AM_SEND_FLAG_EAGER       = UCS_BIT(1),             /**< Force UCP to use only
+                                                                eager protocol for AM sends. */
+    UCP_AM_SEND_FLAG_RNDV        = UCS_BIT(2),             /**< Force UCP to use only
+                                                                rendezvous protocol for
+                                                                AM sends. */
+    UCP_AM_SEND_FLAG_COPY_HEADER = UCS_BIT(3),             /**< Signal UCX that this header
+                                                                is temporary and valid only
+                                                                until the send function returns */
+    UCP_AM_SEND_REPLY            = UCP_AM_SEND_FLAG_REPLY  /**< Backward compatibility. */
 };
 
 
