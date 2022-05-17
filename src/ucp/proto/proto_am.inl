@@ -617,4 +617,10 @@ ucp_am_pack_user_header(void *buffer, ucp_request_t *req)
                 req->send.msg_proto.am.header.length);
 }
 
+#define ucp_am_concat_msg_hdr(_hdr, _payload, _msg_hdr) \
+{ \
+    memcpy(_msg_hdr, _hdr, sizeof(ucp_am_hdr_t)); \
+    memcpy(UCS_PTR_BYTE_OFFSET(_msg_hdr, sizeof(ucp_am_hdr_t)), _payload, sizeof(*_msg_hdr) - sizeof(ucp_am_hdr_t)); \
+}
+
 #endif
