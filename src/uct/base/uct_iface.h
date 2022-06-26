@@ -569,11 +569,42 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
     }
 
 
+#define UCT_TL_IFACE_GET_RX_DESC_SG(_iface, _mp, _desc, _failure) \
+    { \
+        _desc = ucs_mpool_get_inline((&_mp[UCT_IB_RX_SG_TL_HEADER_IDX])); \
+        if (ucs_unlikely((_desc) == NULL)) { \
+            uct_iface_mpool_empty_warn(_iface, &_mp[UCT_IB_RX_SG_TL_HEADER_IDX]); \
+            _failure; \
+        } \
+        _desc->prev = NULL; \
+        _desc->next = ucs_mpool_get_inline((&_mp[UCT_IB_RX_SG_PAYLOAD_IDX])); \
+        if (ucs_unlikely((_desc->next) == NULL)) { \
+            uct_iface_mpool_empty_warn(_iface, &_mp[UCT_IB_RX_SG_PAYLOAD_IDX]); \
+            _failure; \
+        } \
+        _desc->next->prev = _desc; \
+        _desc->next->next = NULL; \
+        \
+        VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
+        VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc->next))); \
+    }
+
+
 #define UCT_TL_IFACE_PUT_DESC(_desc) \
     { \
         ucs_mpool_put_inline(_desc); \
         VALGRIND_MAKE_MEM_UNDEFINED(_desc, sizeof(*(_desc))); \
     }
+
+// static UCS_F_ALWAYS_INLINE void
+// uct_iface_mpool_put_sg_descs(void *desc_p)
+// {
+//     uct_ib_iface_recv_desc_t *desc = desc_p;
+//     ucs_mpool_put_inline(desc->next);
+//     ucs_mpool_put_inline(desc);
+//     VALGRIND_MAKE_MEM_UNDEFINED(desc->next, sizeof(*(desc)));
+//     VALGRIND_MAKE_MEM_UNDEFINED(desc, sizeof(*(desc)));
+// }
 
 
 /**
@@ -863,7 +894,7 @@ int uct_iface_local_is_reachable(uct_iface_local_addr_ns_t *addr_ns,
  */
 static inline ucs_status_t
 uct_iface_invoke_am(uct_base_iface_t *iface, uint8_t id, void *data,
-                    unsigned length, unsigned flags)
+                    void* payload, unsigned length, unsigned flags)
 {
     ucs_status_t     status;
     uct_am_handler_t *handler;
@@ -875,7 +906,7 @@ uct_iface_invoke_am(uct_base_iface_t *iface, uint8_t id, void *data,
     UCS_STATS_UPDATE_COUNTER(iface->stats, UCT_IFACE_STAT_RX_AM_BYTES, length);
 
     handler = &iface->am[id];
-    status = handler->cb(handler->arg, data, length, flags);
+    status = handler->cb(handler->arg, data, NULL, length, flags);
     ucs_assertv((status == UCS_OK) ||
                 ((status == UCS_INPROGRESS) && (flags &
                                                 UCT_CB_PARAM_FLAG_DESC)),
@@ -884,6 +915,47 @@ uct_iface_invoke_am(uct_base_iface_t *iface, uint8_t id, void *data,
                 data, length, flags, ucs_status_string(status));
     return status;
 }
+
+
+/*
+ * Invoke active message handler.
+ *
+ * @param iface    Interface to invoke the handler for.
+ * @param id       Active message ID.
+ * @param data     Received data.
+ * @param length   Length of received data.
+ * @param flags    Mask with @ref uct_cb_param_flags
+ */
+// static inline ucs_status_t
+// uct_iface_invoke_am_sg(uct_base_iface_t *iface, uint8_t id,
+//                     void *hdr, void *payload,
+//                     unsigned length, unsigned flags)
+// {
+//     ucs_status_t     status;
+//     uct_am_handler_t *handler;
+//     uct_ib_iface_recv_desc_t* hdr_desc = data;
+//     uct_ib_iface_recv_desc_t* payload_desc = hdr_desc->next;
+
+
+//     uct_rc_hdr_t* hdr = hdr_desc;
+//     void* payload = payload_desc + 1;
+
+//     ucs_assertv(id < UCT_AM_ID_MAX, "invalid am id: %d (max: %lu)",
+//                 id, UCT_AM_ID_MAX - 1);
+
+//     UCS_STATS_UPDATE_COUNTER(iface->stats, UCT_IFACE_STAT_RX_AM, 1);
+//     UCS_STATS_UPDATE_COUNTER(iface->stats, UCT_IFACE_STAT_RX_AM_BYTES, length);
+
+//     handler = &iface->am[id];
+//     status = handler->cb(handler->arg, data, length, flags);
+//     ucs_assertv((status == UCS_OK) ||
+//                 ((status == UCS_INPROGRESS) && (flags &
+//                                                 UCT_CB_PARAM_FLAG_DESC)),
+//                 "%s(arg=%p data=%p length=%u flags=0x%x) returned %s",
+//                 ucs_debug_get_symbol_name((void*)handler->cb), handler->arg,
+//                 data, length, flags, ucs_status_string(status));
+//     return status;
+// }
 
 
 /**

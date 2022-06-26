@@ -332,8 +332,8 @@ UCS_CLASS_DECLARE(uct_ib_iface_t, uct_iface_ops_t*, uct_ib_iface_ops_t*,
  *                   |
  * uct_recv_desc_t   |
  *               |   |
- *               |   am_callback/tag_unexp_callback
- *               |   |
+ *               |               am_callback/tag_unexp_callback
+ *               |               |
  * +------+------+---+-----------+---------+
  * | LKey |  ??? | D | Head Room | Payload |
  * +------+------+---+--+--------+---------+
@@ -343,8 +343,8 @@ UCS_CLASS_DECLARE(uct_ib_iface_t, uct_iface_ops_t*, uct_ib_iface_ops_t*,
  *                      post_receive
  *
  * (2)
- *            am_callback/tag_unexp_callback
- *            |
+ *                               am_callback/tag_unexp_callback
+ *                               |
  * +------+---+------------------+---------+
  * | LKey | D |     Head Room    | Payload |
  * +------+---+-----+---+--------+---------+
@@ -359,14 +359,23 @@ UCS_CLASS_DECLARE(uct_ib_iface_t, uct_iface_ops_t*, uct_ib_iface_ops_t*,
  *
  */
 typedef struct uct_ib_iface_recv_desc {
-    uint32_t                lkey;
+    struct uct_ib_iface_recv_desc *next;
+    struct uct_ib_iface_recv_desc *prev;
+    uint32_t                       lkey;
 } UCS_S_PACKED uct_ib_iface_recv_desc_t;
-
 
 
 extern ucs_config_field_t uct_ib_iface_config_table[];
 extern const char *uct_ib_mtu_values[];
 
+
+/**
+ * Create memory pool of receive sg descs.
+ */
+ucs_status_t uct_ib_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
+                                              const uct_ib_iface_config_t *config,
+                                              const uct_iface_params_t *params,
+                                              const char *name, ucs_mpool_t *mp);
 
 /**
  * Create memory pool of receive descriptors.
@@ -386,7 +395,7 @@ uct_ib_iface_invoke_am_desc(uct_ib_iface_t *iface, uint8_t am_id, void *data,
     void *desc = (char*)ib_desc + iface->config.rx_headroom_offset;
     ucs_status_t status;
 
-    status = uct_iface_invoke_am(&iface->super, am_id, data, length,
+    status = uct_iface_invoke_am(&iface->super, am_id, data, NULL, length,
                                  UCT_CB_PARAM_FLAG_DESC);
     if (status == UCS_OK) {
         ucs_mpool_put_inline(ib_desc);
@@ -531,6 +540,13 @@ uct_ib_iface_recv_desc_payload(uct_ib_iface_t *iface,
     return UCS_PTR_BYTE_OFFSET(desc, iface->config.rx_payload_offset);
 }
 
+static inline void *
+uct_ib_iface_recv_desc_sg_payload(uct_ib_iface_t *iface,
+                                  uct_ib_iface_recv_desc_t *desc)
+{
+    return UCS_PTR_BYTE_OFFSET(desc, sizeof(uct_ib_iface_recv_desc_t));
+}
+
 typedef struct uct_ib_recv_wr {
     struct ibv_recv_wr ibwr;
     struct ibv_sge     sg[UCT_IB_RECV_SG_LIST_LEN];
@@ -544,6 +560,8 @@ typedef struct uct_ib_recv_wr {
  */
 int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
                                 uct_ib_recv_wr_t *wrs, unsigned n);
+int uct_ib_iface_prepare_rx_wrs_rc(uct_ib_iface_t *iface, ucs_mpool_t *mp,
+                                   uct_ib_recv_wr_t *wrs, unsigned n);
 
 ucs_status_t uct_ib_iface_create_ah(uct_ib_iface_t *iface,
                                     struct ibv_ah_attr *ah_attr,

@@ -428,7 +428,7 @@ ucs_status_t uct_rc_iface_fc_handler(uct_rc_iface_t *iface, unsigned qp_num,
 out:
     return uct_iface_invoke_am(&iface->super.super,
                                (hdr->am_id & ~UCT_RC_EP_FC_MASK),
-                               hdr + 1, length, flags);
+                               hdr + 1, NULL, length, flags);
 }
 
 static ucs_status_t uct_rc_iface_tx_ops_init(uct_rc_iface_t *iface)
@@ -652,9 +652,9 @@ UCS_CLASS_INIT_FUNC(uct_rc_iface_t, uct_iface_ops_t *tl_ops,
         goto err;
     }
 
-    /* Create RX buffers mempool */
-    status = uct_ib_iface_recv_mpool_init(&self->super, &config->super, params,
-                                          "rc_recv_desc", &self->rx.mp);
+    /* Create RX TL HDR buffers mempool */
+    status = uct_ib_iface_recv_sg_mpools_init(&self->super, &config->super, params,
+                                              "rc_recv_sg_descs", self->rx.mps);
     if (status != UCS_OK) {
         goto err;
     }
@@ -742,6 +742,8 @@ err_destroy_tx_mp:
     ucs_mpool_cleanup(&self->tx.mp, 1);
 err_destroy_rx_mp:
     ucs_mpool_cleanup(&self->rx.mp, 1);
+    ucs_mpool_cleanup(&self->rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX], 1);
+    ucs_mpool_cleanup(&self->rx.mps[UCT_IB_RX_SG_PAYLOAD_IDX], 1);
 err:
     return status;
 }
@@ -803,6 +805,8 @@ static UCS_CLASS_CLEANUP_FUNC(uct_rc_iface_t)
     uct_rc_iface_tx_ops_cleanup(self);
     ucs_mpool_cleanup(&self->tx.mp, 1);
     ucs_mpool_cleanup(&self->rx.mp, 0); /* Cannot flush SRQ */
+    ucs_mpool_cleanup(&self->rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX], 0);
+    ucs_mpool_cleanup(&self->rx.mps[UCT_IB_RX_SG_PAYLOAD_IDX], 0);
     ucs_mpool_cleanup(&self->tx.pending_mp, 1);
 }
 

@@ -228,6 +228,59 @@ uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj, uct_mem_h memh)
     uct_ib_iface_recv_desc_t *desc = obj;
 
     desc->lkey = uct_ib_memh_get_lkey(memh);
+    desc->next = NULL;
+}
+
+ucs_status_t uct_ib_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
+                                              const uct_ib_iface_config_t *config,
+                                              const uct_iface_params_t *params,
+                                              const char *name, ucs_mpool_t *mp)
+{
+    size_t align_offset, alignment;
+    ucs_status_t status;
+    unsigned grow;
+
+    if (config->rx.queue_len < 1024) {
+        grow = 1024;
+    } else {
+        /* We want to have some free (+10%) elements to avoid mem pool expansion */
+        grow = ucs_min( (int)(1.1 * config->rx.queue_len + 0.5),
+                        config->rx.mp.max_bufs);
+    }
+
+    /* Preserve the default alignment by UCT header if user does not request
+     * specific alignment.
+     * TODO: Analyze how to keep UCT header aligned by cache line even when
+     * user requested specific alignment for payload.
+     */
+    status = uct_iface_param_am_alignment(params, iface->config.rx_payload_offset,
+                                          0,
+                                          iface->config.rx_hdr_offset,
+                                          &alignment, &align_offset);
+    if (status != UCS_OK) {
+        return status;
+    }
+
+    status = uct_iface_mpool_init(&iface->super, &mp[UCT_IB_RX_SG_TL_HEADER_IDX],
+                                iface->config.rx_payload_offset,
+                                align_offset, alignment, &config->rx.mp, grow,
+                                uct_ib_iface_recv_desc_init, name);
+    
+    status = uct_iface_param_am_alignment(params,
+                                          iface->config.seg_size +
+                                          sizeof(uct_ib_iface_recv_desc_t),
+                                          0,
+                                          sizeof(uct_ib_iface_recv_desc_t),
+                                          &alignment, &align_offset);
+    if (status != UCS_OK) {
+        return status;
+    }
+
+    return uct_iface_mpool_init(&iface->super, &mp[UCT_IB_RX_SG_PAYLOAD_IDX],
+                                iface->config.seg_size +
+                                sizeof(uct_ib_iface_recv_desc_t),
+                                align_offset, alignment, &config->rx.mp, grow,
+                                uct_ib_iface_recv_desc_init, name);
 }
 
 ucs_status_t uct_ib_iface_recv_mpool_init(uct_ib_iface_t *iface,
@@ -1413,6 +1466,29 @@ static UCS_CLASS_CLEANUP_FUNC(uct_ib_iface_t)
 
 UCS_CLASS_DEFINE(uct_ib_iface_t, uct_base_iface_t);
 
+static inline void
+uct_ib_iface_prepare_rx_wr(uct_ib_iface_t *iface,
+                           uct_ib_recv_wr_t *wr,
+                           const size_t hdr_len,
+                           uct_ib_iface_recv_desc_t *sg_descs,
+                           void *hdr,
+                           void *payload) {
+    uct_ib_recv_wr_t *next_wr = wr + 1;
+    
+    wr->sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr   = (uintptr_t)hdr;
+    wr->sg[UCT_IB_RX_SG_TL_HEADER_IDX].length = hdr_len;
+    wr->sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey   = sg_descs->lkey;
+    wr->sg[UCT_IB_RX_SG_PAYLOAD_IDX].addr     = (uintptr_t)payload;
+    wr->sg[UCT_IB_RX_SG_PAYLOAD_IDX].length   = iface->config.seg_size +
+                                                hdr_len;
+    wr->sg[UCT_IB_RX_SG_PAYLOAD_IDX].lkey     = sg_descs->next->lkey;
+
+    wr->ibwr.num_sge = UCT_IB_RECV_SG_LIST_LEN;
+    wr->ibwr.wr_id   = (uintptr_t)sg_descs;
+    wr->ibwr.sg_list = wr->sg;
+    wr->ibwr.next    = &next_wr->ibwr;
+}
+
 int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
                                 uct_ib_recv_wr_t *wrs, unsigned n)
 {
@@ -1425,20 +1501,35 @@ int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
     count = 0;
     while (count < n) {
         UCT_TL_IFACE_GET_RX_DESC(&iface->super, mp, desc, break);
+        desc->next = desc;
         hdr     = uct_ib_iface_recv_desc_hdr(iface, desc);
         payload = uct_ib_iface_recv_desc_payload(iface, desc);
+        uct_ib_iface_prepare_rx_wr(iface, &wrs[count], hdr_len, desc, hdr, payload);
+        ++count;
+    }
 
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr   = (uintptr_t)hdr;
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length = hdr_len;
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey   = desc->lkey;
-        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].addr     = (uintptr_t)payload;
-        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].length   = iface->config.seg_size;
-        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].lkey = desc->lkey;
+    if (count > 0) {
+        wrs[count - 1].ibwr.next = NULL;
+    }
 
-        wrs[count].ibwr.num_sge = UCT_IB_RECV_SG_LIST_LEN;
-        wrs[count].ibwr.wr_id   = (uintptr_t)desc;
-        wrs[count].ibwr.sg_list = wrs[count].sg;
-        wrs[count].ibwr.next    = &wrs[count + 1].ibwr;
+    return count;
+}
+
+int uct_ib_iface_prepare_rx_wrs_rc(uct_ib_iface_t *iface, ucs_mpool_t *mp,
+                                   uct_ib_recv_wr_t *wrs, unsigned n)
+{
+    const size_t hdr_len = uct_ib_iface_tl_hdr_length(iface);
+    uct_ib_iface_recv_desc_t *desc;
+    unsigned count;
+    void *hdr;
+    void *payload;
+
+    count = 0;
+    while (count < n) {
+        UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super, mp, desc, break);
+        hdr     = uct_ib_iface_recv_desc_hdr(iface, desc);
+        payload = uct_ib_iface_recv_desc_sg_payload(iface, desc->next);
+        uct_ib_iface_prepare_rx_wr(iface, &wrs[count], hdr_len, desc, hdr, payload);
         ++count;
     }
 

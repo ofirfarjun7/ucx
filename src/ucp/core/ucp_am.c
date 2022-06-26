@@ -1300,8 +1300,8 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_handler_common(
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_handler_reply,
-                 (am_arg, am_data, am_length, am_flags),
-                 void *am_arg, void *am_data, size_t am_length,
+                 (am_arg, am_data, payload, am_length, am_flags),
+                 void *am_arg, void *am_data, void *payload, size_t am_length,
                  unsigned am_flags)
 {
     ucp_am_hdr_t *hdr       = (ucp_am_hdr_t*)am_data;
@@ -1319,8 +1319,8 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_am_handler_reply,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_handler,
-                 (am_arg, am_data, am_length, am_flags),
-                 void *am_arg, void *am_data, size_t am_length,
+                 (am_arg, am_data, payload, am_length, am_flags),
+                 void *am_arg, void *am_data, void *payload, size_t am_length,
                  unsigned am_flags)
 {
     ucp_worker_h worker = am_arg;
@@ -1438,8 +1438,8 @@ ucp_am_handle_unfinished(ucp_worker_h worker, ucp_recv_desc_t *first_rdesc,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_long_first_handler,
-                 (am_arg, am_data, am_length, am_flags),
-                 void *am_arg, void *am_data, size_t am_length,
+                 (am_arg, am_data, payload, am_length, am_flags),
+                 void *am_arg, void *am_data, void *payload, size_t am_length,
                  unsigned am_flags)
 {
     ucp_worker_h worker    = am_arg;
@@ -1555,8 +1555,8 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_am_long_first_handler,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_long_middle_handler,
-                 (am_arg, am_data, am_length, am_flags),
-                 void *am_arg, void *am_data, size_t am_length,
+                 (am_arg, am_data, payload, am_length, am_flags),
+                 void *am_arg, void *am_data, void *payload, size_t am_length,
                  unsigned am_flags)
 {
     ucp_worker_h worker        = am_arg;
