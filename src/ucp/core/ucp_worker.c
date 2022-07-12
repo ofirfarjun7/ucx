@@ -1007,7 +1007,7 @@ UCS_PROFILE_FUNC(void*, user_dummy_memory_allocator_get, (allocator_obj, memh),
 
 UCS_PROFILE_FUNC_VOID(user_dummy_memory_allocator_put, (obj), void *obj)
 {
-    obj = UCS_PTR_BYTE_OFFSET(obj, -sizeof(uct_mem_h));
+    obj = UCS_PTR_BYTE_OFFSET(obj, -sizeof(ucp_shared_mpool_buf_hdr_t));
     ucs_mpool_put_inline((void*)obj);
     VALGRIND_MAKE_MEM_UNDEFINED(obj, sizeof(*(obj)));
 }
