@@ -798,11 +798,15 @@ dummy_mem_allocator_mp_chunk_alloc(ucs_mpool_t *mp,
     ucp_mem_attr_t memh_attr;
 
     chunk_size        = (*size_p) + sizeof(*chunk_hdr);
-    params.field_mask = UCP_MEM_MAP_PARAM_FIELD_LENGTH |
+    params.field_mask = UCP_MEM_MAP_PARAM_FIELD_ADDRESS |
+                        UCP_MEM_MAP_PARAM_FIELD_LENGTH  |
                         UCP_MEM_MAP_PARAM_FIELD_FLAGS;
-    params.flags      = UCP_MEM_MAP_ALLOCATE;
     params.length     = chunk_size;
-    params.address    = NULL;
+    params.address    = malloc(chunk_size);
+    if (params.address == NULL) {
+        return UCS_ERR_NO_MEMORY;
+    }
+
     /* change to map only */
     if ((status = ucp_mem_map(context, &params, &memh)) != UCS_OK) {
         return status;
@@ -825,8 +829,12 @@ dummy_mem_allocator_mp_chunk_release(ucs_mpool_t *mp, void *chunk)
     const dummy_mem_allocator_obj_t *allocator = (dummy_mem_allocator_obj_t*)mp;
     ucp_shared_mpool_chunk_hdr_t *chunk_hdr =
             UCS_PTR_BYTE_OFFSET(chunk, -sizeof(ucp_shared_mpool_chunk_hdr_t));
+    ucp_mem_attr_t memh_attr;
 
+    memh_attr.field_mask = UCP_MEM_ATTR_FIELD_ADDRESS;
+    ucp_mem_query(chunk_hdr->memh, &memh_attr);
     ucp_mem_unmap(allocator->context, chunk_hdr->memh);
+    free(memh_attr.address);
 }
 
 static void
