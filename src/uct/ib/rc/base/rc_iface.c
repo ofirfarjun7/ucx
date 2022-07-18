@@ -810,7 +810,7 @@ static UCS_CLASS_CLEANUP_FUNC(uct_rc_iface_t)
     uct_rc_iface_tx_ops_cleanup(self);
     ucs_mpool_cleanup(&self->tx.mp, 1);
     ucs_mpool_cleanup(&self->rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX], 0);
-    if (self->super.super.rx_buffers_agent_arg == NULL) {
+    if (self->super.super.rx_buffers_agent_arg == &self->rx.mps[UCT_IB_RX_SG_PAYLOAD_IDX]) {
         ucs_mpool_cleanup(&self->rx.mps[UCT_IB_RX_SG_PAYLOAD_IDX], 0);
     }
     ucs_mpool_cleanup(&self->tx.pending_mp, 1);

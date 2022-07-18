@@ -14,22 +14,24 @@ BEGIN_C_DECLS
 /** @file ucs_buffers_agent.h */
 
 typedef struct ucs_buffers_agent_buffer {
+    size_t num_of_buffers;
     uct_mem_h memh;
-    void      *buf;
+    void      *buffers[1];
 } ucs_buffers_agent_buffer_t;
 
+/**
+ * Get buffer and uct memory handler from the memory allocation instance.
+ *
+ * @param [in]  arg            uct obj arg. TODO - improve description.
+ * @param [out] buf            agent buffer.
+ *
+ * @return            Error code as defined by @ref ucs_status_t
+ */
+typedef ucs_status_t (*ucs_buffers_agent_get_buf_cb_t)(void *arg,
+        ucs_buffers_agent_buffer_t *buf);
+
 typedef struct ucs_buffers_agent_ops {
-    /**
-     * Get buffer and uct memory handler from the memory allocation instance.
-     *
-     * @param [in]  agent memory allocator agent.
-     * @param [in]  arg   uct obj arg. TODO - improve description.
-     * @param [out] buf   agent buffer.
-     *
-     * @return            Error code as defined by @ref ucs_status_t
-     */
-    ucs_status_t (*get_buf)(void *agent, void *arg,
-                            ucs_buffers_agent_buffer_t *buf);
+    ucs_buffers_agent_get_buf_cb_t get_buf;
 
     /**
      * Return buffer to the memory allocation instance.

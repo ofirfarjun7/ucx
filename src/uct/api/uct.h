@@ -1177,11 +1177,11 @@ struct uct_iface_params {
      */
     uint64_t                                     features;
 
-    /* RX Buffers Agent Ops */
-    ucs_buffers_agent_ops_t                      *rx_buffers_agent_ops;
-
-    /* RX Buffers Agent */
-    void                                         *rx_buffers_agent;
+    /* RX Buffers Agent get */
+    ucs_buffers_agent_get_buf_cb_t               rx_buffers_agent_get;
+    
+    /* RX Buffers Agent payload length */
+    size_t                                       rx_buffers_agent_payload_length;
 
     /* RX Buffers Agent Arg */
     void                                         *rx_buffers_agent_arg;

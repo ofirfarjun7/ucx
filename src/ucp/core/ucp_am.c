@@ -1240,7 +1240,7 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
     uint16_t am_id           = am_hdr->am_id;
     uint32_t user_hdr_size   = am_hdr->header_length;
     ucp_am_entry_t *am_cb    = &ucs_array_elem(&worker->am.cbs, am_id);
-    void *data               = payload;
+    void *data               = am_hdr + 1;
     size_t data_length       = total_length -
                                (sizeof(*am_hdr) + am_hdr->header_length);
     void *user_hdr           = UCS_PTR_BYTE_OFFSET(data, data_length);

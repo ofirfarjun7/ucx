@@ -288,14 +288,14 @@ typedef struct uct_base_iface {
         size_t               max_num_eps;
     } config;
 
-    /* RX Buffers Agent */
-    void                    *rx_buffers_agent;
-
     /* RX Buffers Agent Ops */
     ucs_buffers_agent_ops_t *rx_buffers_agent_ops;
 
     /* RX Buffers Agent Arg */
     void                    *rx_buffers_agent_arg;
+    
+    /* RX Buffers Agent Arg */
+    size_t                   rx_buffers_agent_payload_length;
 
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
 } uct_base_iface_t;
@@ -599,16 +599,16 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
                                        &_mp[UCT_IB_RX_SG_TL_HEADER_IDX]); \
             _failure; \
         } \
+        _agent_buf.num_of_buffers = 1; \
         _status = _base_iface->rx_buffers_agent_ops->get_buf( \
-                _base_iface->rx_buffers_agent, \
-                _base_iface->rx_buffers_agent_arg, &_agent_buf); \
+        _base_iface->rx_buffers_agent_arg, &_agent_buf); \
         if (ucs_unlikely(_status != UCS_OK)) { \
             uct_iface_mpool_empty_warn(_iface, \
                                        &_mp[UCT_IB_RX_SG_PAYLOAD_IDX]); \
             _failure; \
         } \
         _desc->payload_lkey = uct_ib_memh_get_lkey(_agent_buf.memh); \
-        _desc->payload      = _agent_buf.buf; \
+        _desc->payload      = _agent_buf.buffers[0]; \
         \
         VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
     }

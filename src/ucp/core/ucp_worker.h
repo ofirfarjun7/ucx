@@ -253,8 +253,9 @@ UCS_PTR_MAP_TYPE(ep, 1);
 UCS_PTR_MAP_TYPE(request, 0);
 
 typedef struct ucp_worker_user_mem_allocator {
-    void                         *obj;
-    ucp_user_mem_allocator_ops_t ops;
+    void                   *obj;
+    size_t                 payload_length;
+    ucp_mem_allocator_cb_t get_buf;
 } ucp_worker_user_mem_allocator_t;
 
 /**
@@ -299,7 +300,6 @@ typedef struct ucp_worker {
     unsigned                         num_ifaces;          /* Number of elements in ifaces array  */
     unsigned                         num_active_ifaces;   /* Number of activated ifaces  */
     ucp_worker_user_mem_allocator_t  user_mem_allocator;
-    ucs_buffers_agent_ops_t          rx_buffers_agent_ops;
     ucp_tl_bitmap_t                  scalable_tl_bitmap;  /* Map of scalable tl resources */
     ucp_worker_cm_t                  *cms;                /* Array of CMs, one for each component */
     ucs_mpool_set_t                  am_mps;              /* Memory pool set for AM receives */

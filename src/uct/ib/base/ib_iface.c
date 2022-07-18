@@ -288,7 +288,7 @@ uct_ib_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
             return status;
         }
 
-        iface->super.rx_buffers_agent = &mp[UCT_IB_RX_SG_PAYLOAD_IDX];
+        iface->super.rx_buffers_agent_arg = &mp[UCT_IB_RX_SG_PAYLOAD_IDX];
     }
 
     return status;
