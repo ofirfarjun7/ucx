@@ -870,6 +870,7 @@ user_dummy_memory_allocator_init(ucp_context_h context, const size_t buffer_size
     mp_params.priv_size       = sizeof(ucp_shared_mpool_buf_hdr_t);
     mp_params.elem_size       = buffer_size + sizeof(ucp_shared_mpool_buf_hdr_t);
     mp_params.align_offset    = sizeof(ucp_shared_mpool_buf_hdr_t);
+    mp_params.elems_per_chunk = 4096;
     mp_params.ops             = &ucp_worker_ifaces_mpool_ops;
     mp_params.name            = "dummy_mem_allocator_mpool";
     status                    = ucs_mpool_init(&mp_params, &allocator->mpool);
@@ -892,15 +893,19 @@ user_dummy_memory_allocator_get(void *allocator_obj,
             allocator_obj;
     ucp_shared_mpool_buf_hdr_t *m_buf_hdr;
     void *obj;
+    size_t buff_idx;
 
-    obj = ucs_mpool_get(&allocator->mpool);
-    if (obj == NULL) {
-        return UCS_ERR_NO_MEMORY;
+    for (buff_idx = 0; buff_idx < num_of_buffers; buff_idx++) {
+        obj = ucs_mpool_get(&allocator->mpool);
+        if (obj == NULL) {
+            return UCS_ERR_NO_MEMORY;
+        }
+
+        m_buf_hdr = (ucp_shared_mpool_buf_hdr_t*)obj;
+        *memh = m_buf_hdr->ucp_memh;
+        buffers[buff_idx] = m_buf_hdr + 1;
     }
 
-    m_buf_hdr = (ucp_shared_mpool_buf_hdr_t*)obj;
-    *memh = m_buf_hdr->ucp_memh;
-    buffers[0] = m_buf_hdr + 1;
     return UCS_OK;
 }
 
@@ -941,7 +946,7 @@ static int init_worker(ucp_context_h ucp_context, ucp_worker_h *ucp_worker,
         worker_params.field_mask              |= UCP_WORKER_PARAM_FIELD_USER_ALLOCATOR;
         worker_params.allocator_payload_length = allocator_obj->payload_length;
         worker_params.allocator_obj            = allocator_obj;
-        worker_params.allocator_cb     = user_dummy_memory_allocator_get;
+        worker_params.allocator_cb             = user_dummy_memory_allocator_get;
     }
 
     status = ucp_worker_create(ucp_context, &worker_params, ucp_worker);
