@@ -588,29 +588,37 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
     }
 
 
-#define UCT_TL_IFACE_GET_RX_DESC_SG(_iface, _mp, _desc, _failure) \
+#define UCT_TL_IFACE_GET_RX_DESC_SG(_iface, _mp, _agent_buf, _failure) \
     { \
-        ucs_buffers_agent_buffer_t _agent_buf; \
         uct_base_iface_t *_base_iface = _iface; \
-        ucs_status_t _status; \
-        _desc = ucs_mpool_get_inline((&_mp[UCT_IB_RX_SG_TL_HEADER_IDX])); \
-        if (ucs_unlikely((_desc) == NULL)) { \
-            uct_iface_mpool_empty_warn(_iface, \
-                                       &_mp[UCT_IB_RX_SG_TL_HEADER_IDX]); \
-            _failure; \
-        } \
-        _agent_buf.num_of_buffers = 1; \
-        _status = _base_iface->rx_buffers_agent_ops->get_buf( \
-        _base_iface->rx_buffers_agent_arg, &_agent_buf); \
-        if (ucs_unlikely(_status != UCS_OK)) { \
+        uct_ib_iface_recv_desc_t *_desc; \
+        ucs_buffers_agent_buffer_t* _agent_buf_p = (ucs_buffers_agent_buffer_t*)_agent_buf; \
+        ucs_status_t _status_buff; \
+        uint32_t _payload_lkey; \
+        int _buf_idx; \
+        \
+        _status_buff = _base_iface->rx_buffers_agent_ops->get_buf( \
+        _base_iface->rx_buffers_agent_arg, _agent_buf_p); \
+        if (ucs_unlikely(_status_buff != UCS_OK)) { \
             uct_iface_mpool_empty_warn(_iface, \
                                        &_mp[UCT_IB_RX_SG_PAYLOAD_IDX]); \
             _failure; \
         } \
-        _desc->payload_lkey = uct_ib_memh_get_lkey(_agent_buf.memh); \
-        _desc->payload      = _agent_buf.buffers[0]; \
         \
-        VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
+        _payload_lkey = uct_ib_memh_get_lkey(_agent_buf_p->memh); \
+        for (_buf_idx = 0; _buf_idx < _agent_buf_p->num_of_buffers; _buf_idx++) { \
+            _desc = ucs_mpool_get_inline((&_mp[UCT_IB_RX_SG_TL_HEADER_IDX])); \
+            if (ucs_unlikely((_desc) == NULL)) { \
+                uct_iface_mpool_empty_warn(_iface, \
+                                        &_mp[UCT_IB_RX_SG_TL_HEADER_IDX]); \
+                _failure; \
+            } \
+            VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
+            _desc->payload_lkey = _payload_lkey; \
+            _desc->payload      = _agent_buf_p->buffers[_buf_idx]; \
+            _agent_buf_p->buffers[_buf_idx] = _desc;\
+        } \
+        \
     }
 
 

@@ -495,14 +495,17 @@ uct_base_iface_rx_buffers_default_agent_get(void *arg,
 {
     uct_iface_recv_desc_t *obj;
     ucs_mpool_t *mp = arg;
+    size_t i;
+    for (i = 0; i < buf->num_of_buffers; i++) {
+        obj = ucs_mpool_get_inline(mp);
+        if (obj == NULL) {
+            return UCS_ERR_NO_ELEM;
+        }
 
-    obj = ucs_mpool_get_inline(mp);
-    if (obj == NULL) {
-        return UCS_ERR_NO_ELEM;
+        buf->memh       = obj->uct_memh;
+        buf->buffers[i] = obj + 1;
     }
-
-    buf->memh       = obj->uct_memh;
-    buf->buffers[0] = obj + 1;
+    
     return UCS_OK;
 }
 

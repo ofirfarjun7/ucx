@@ -16,7 +16,7 @@ BEGIN_C_DECLS
 typedef struct ucs_buffers_agent_buffer {
     size_t num_of_buffers;
     uct_mem_h memh;
-    void      *buffers[1];
+    void      *buffers[4096];
 } ucs_buffers_agent_buffer_t;
 
 /**

@@ -1530,7 +1530,7 @@ int uct_ib_iface_prepare_rx_wrs_rc(uct_ib_iface_t *iface, ucs_mpool_t *mp,
 
     count = 0;
     while (count < n) {
-        UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super, mp, desc, break);
+        UCT_TL_IFACE_GET_RX_DESC(&iface->super, mp, desc, break);
         uct_ib_iface_prepare_rx_wr(iface, &wrs[count], desc);
         ++count;
     }

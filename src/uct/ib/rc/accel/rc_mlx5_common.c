@@ -114,14 +114,14 @@ uct_rc_mlx5_iface_srq_set_seg(uct_rc_mlx5_iface_common_t *iface,
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
-        uct_rc_mlx5_iface_common_t *iface, uct_ib_mlx5_srq_seg_t *seg)
+        uct_rc_mlx5_iface_common_t *iface, uct_ib_mlx5_srq_seg_t *seg,
+        uint16_t buff_idx, ucs_buffers_agent_buffer_t *agent_buf)
 {
     uct_ib_iface_recv_desc_t *desc;
     void *hdr;
     void *payload;
 
-    UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super.super.super, iface->super.rx.mps,
-                                desc, return UCS_ERR_NO_MEMORY);
+    desc = agent_buf->buffers[buff_idx];
     hdr           = uct_ib_iface_recv_desc_hdr(&iface->super.super, desc);
     payload       = desc->payload;
     /* Set receive data segment pointer. Length is pre-initialized. */
@@ -163,6 +163,8 @@ unsigned uct_rc_mlx5_iface_srq_post_recv(uct_rc_mlx5_iface_common_t *iface)
     uct_ib_mlx5_srq_seg_t *seg;
     uint16_t count, wqe_index, next_index;
     ucs_status_t status;
+    ucs_buffers_agent_buffer_t agent_buf;
+    uint32_t buff_idx;
 
     /* Make sure the union is right */
     UCS_STATIC_ASSERT(ucs_offsetof(uct_ib_mlx5_srq_seg_t, mlx5_srq.next_wqe_index) ==
@@ -174,6 +176,24 @@ unsigned uct_rc_mlx5_iface_srq_post_recv(uct_rc_mlx5_iface_common_t *iface)
     ucs_assert(rc_iface->rx.srq.available > 0);
 
     wqe_index = srq->ready_idx;
+    buff_idx = 0;
+    for (;;) {
+        next_index = wqe_index + 1;
+        seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+        if (UCS_CIRCULAR_COMPARE16(next_index, >, srq->free_idx)) {
+            if (!seg->srq.free) {
+                break;
+            }
+        }
+        wqe_index = next_index;
+        buff_idx++;
+    }
+    agent_buf.num_of_buffers = buff_idx;
+    UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super.super.super, iface->super.rx.mps,
+                                &agent_buf, return UCS_ERR_NO_MEMORY);    
+
+    wqe_index = srq->ready_idx;
+    buff_idx = 0;
     for (;;) {
         next_index = wqe_index + 1;
         seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
@@ -190,7 +210,7 @@ unsigned uct_rc_mlx5_iface_srq_post_recv(uct_rc_mlx5_iface_common_t *iface)
         if (UCT_RC_MLX5_MP_ENABLED(iface)) {
             status = uct_rc_mlx5_iface_srq_set_seg(iface, seg);
         } else {
-            status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg);
+            status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, buff_idx, &agent_buf);
         }
 
         if (status != UCS_OK) {
@@ -198,6 +218,7 @@ unsigned uct_rc_mlx5_iface_srq_post_recv(uct_rc_mlx5_iface_common_t *iface)
         }
 
         wqe_index = next_index;
+        buff_idx++;
     }
 
     count = wqe_index - srq->sw_pi;
@@ -214,6 +235,7 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll(uct_rc_mlx5_iface_common_t *iface)
     uint16_t count             = 0;
     uint16_t wqe_index, next_index;
     ucs_status_t status;
+    ucs_buffers_agent_buffer_t agent_buf;
 
     ucs_assert(rc_iface->rx.srq.available > 0);
 
@@ -226,11 +248,28 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll(uct_rc_mlx5_iface_common_t *iface)
             break;
         }
         seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+        wqe_index = next_index;
+        count++;
+    }
+
+    agent_buf.num_of_buffers = count;
+    UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super.super.super, iface->super.rx.mps,
+                                &agent_buf, return UCS_ERR_NO_MEMORY);
+
+    wqe_index = srq->ready_idx;
+    seg       = uct_ib_mlx5_srq_get_wqe(srq, wqe_index);
+    count = 0;
+    for (;;) {
+        next_index = ntohs(seg->srq.next_wqe_index);
+        if (next_index == (srq->free_idx & srq->mask)) {
+            break;
+        }
+        seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
 
         if (UCT_RC_MLX5_MP_ENABLED(iface)) {
             status = uct_rc_mlx5_iface_srq_set_seg(iface, seg);
         } else {
-            status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg);
+            status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, count, &agent_buf);
         }
 
         if (status != UCS_OK) {
