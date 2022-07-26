@@ -798,22 +798,22 @@ static ucs_status_t ucp_wireup_msg_handler(void *arg, void *data, void *payload,
                                            size_t length, unsigned flags)
 {
     ucp_worker_h worker   = arg;
-    ucp_wireup_msg_t msg;
+    ucp_wireup_msg_t *msg;
     ucp_ep_h ep           = NULL;
     ucp_unpacked_address_t remote_address;
     ucs_status_t status;
 
     UCS_ASYNC_BLOCK(&worker->async);
 
-    ucp_am_concat_msg_hdr(data, payload, &msg);
-    if (msg.dst_ep_id != UCS_PTR_MAP_KEY_INVALID) {
+    ucp_am_concat_msg_hdr(data, payload, length, msg, (ucp_wireup_msg_t*));
+    if (msg->dst_ep_id != UCS_PTR_MAP_KEY_INVALID) {
         UCP_WORKER_GET_EP_BY_ID(
-                &ep, worker, msg.dst_ep_id,
-                if (msg.type != UCP_WIREUP_MSG_EP_CHECK) { goto out; },
-                "WIREUP message (%d src_ep_id 0x%" PRIx64 " sn %d)", msg.type,
-                msg.src_ep_id, msg.conn_sn);
+                &ep, worker, msg->dst_ep_id,
+                if (msg->type != UCP_WIREUP_MSG_EP_CHECK) { goto out; },
+                "WIREUP message (%d src_ep_id 0x%" PRIx64 " sn %d)", msg->type,
+                msg->src_ep_id, msg->conn_sn);
 
-        if ((msg.type == UCP_WIREUP_MSG_EP_CHECK) && (ep != NULL)) {
+        if ((msg->type == UCP_WIREUP_MSG_EP_CHECK) && (ep != NULL)) {
             /* UCP EP is valid, no need for any other actions when handling
              * EP_CHECK message (e.g. can avoid remote address unpacking) */
             goto out;
@@ -830,20 +830,20 @@ static ucs_status_t ucp_wireup_msg_handler(void *arg, void *data, void *payload,
         goto out;
     }
 
-    if (msg.type == UCP_WIREUP_MSG_ACK) {
+    if (msg->type == UCP_WIREUP_MSG_ACK) {
         ucs_assert(remote_address.address_count == 0);
-        ucp_wireup_process_ack(worker, ep, &msg);
-    } else if (msg.type == UCP_WIREUP_MSG_PRE_REQUEST) {
-        ucp_wireup_process_pre_request(worker, ep, &msg, &remote_address);
-    } else if (msg.type == UCP_WIREUP_MSG_REQUEST) {
-        ucp_wireup_process_request(worker, ep, &msg, &remote_address);
-    } else if (msg.type == UCP_WIREUP_MSG_REPLY) {
-        ucp_wireup_process_reply(worker, ep, &msg, &remote_address);
-    } else if (msg.type == UCP_WIREUP_MSG_EP_CHECK) {
-        ucs_assert((msg.dst_ep_id != UCS_PTR_MAP_KEY_INVALID) && (ep == NULL));
-        ucp_wireup_send_ep_removed(worker, &msg, &remote_address);
-    } else if (msg.type == UCP_WIREUP_MSG_EP_REMOVED) {
-        ucs_assert(msg.dst_ep_id != UCS_PTR_MAP_KEY_INVALID);
+        ucp_wireup_process_ack(worker, ep, msg);
+    } else if (msg->type == UCP_WIREUP_MSG_PRE_REQUEST) {
+        ucp_wireup_process_pre_request(worker, ep, msg, &remote_address);
+    } else if (msg->type == UCP_WIREUP_MSG_REQUEST) {
+        ucp_wireup_process_request(worker, ep, msg, &remote_address);
+    } else if (msg->type == UCP_WIREUP_MSG_REPLY) {
+        ucp_wireup_process_reply(worker, ep, msg, &remote_address);
+    } else if (msg->type == UCP_WIREUP_MSG_EP_CHECK) {
+        ucs_assert((msg->dst_ep_id != UCS_PTR_MAP_KEY_INVALID) && (ep == NULL));
+        ucp_wireup_send_ep_removed(worker, msg, &remote_address);
+    } else if (msg->type == UCP_WIREUP_MSG_EP_REMOVED) {
+        ucs_assert(msg->dst_ep_id != UCS_PTR_MAP_KEY_INVALID);
         ucp_ep_set_failed_schedule(ep, UCP_NULL_LANE, UCS_ERR_CONNECTION_RESET);
     } else {
         ucs_bug("invalid wireup message");
