@@ -853,23 +853,6 @@ ucp_recv_desc_init(ucp_worker_h worker, void *data, size_t length,
     return status;
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t
-ucp_recv_desc_am_init(ucp_worker_h worker, void *data, void *payload, size_t length,
-                   int data_offset, unsigned am_flags, uint16_t hdr_len,
-                   uint16_t rdesc_flags, int priv_length, size_t alignment,
-                   const char *name, ucp_recv_desc_t **rdesc_p)
-{
-    ucp_recv_desc_t *rdesc;
-    ucs_status_t status;
-
-    status = ucp_recv_desc_init_slowpath(data, data_offset, rdesc_flags, priv_length, &rdesc);
-    rdesc->payload = payload;
-    ucp_recv_desc_set_name(rdesc, name);
-    rdesc->length  = length + data_offset;
-    *rdesc_p       = rdesc;
-    return status;
-}
-
 static UCS_F_ALWAYS_INLINE void
 ucp_recv_desc_release(ucp_recv_desc_t *rdesc)
 {

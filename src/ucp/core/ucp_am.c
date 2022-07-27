@@ -1271,17 +1271,11 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
          * memory copy of the user header if the message is short/inlined
          * (i.e. received without UCT_CB_PARAM_FLAG_DESC flag).
          */
-        desc_status = ucp_recv_desc_am_init(worker, data, payload, data_length,
-                                            0, am_flags, 0,
-                                            UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS,
-                                            -(int)sizeof(*am_hdr),
-                                            worker->am.alignment, name, &desc);
-        if (ucs_unlikely(UCS_STATUS_IS_ERR(desc_status))) {
-            ucs_error("worker %p could not allocate descriptor for active"
-                      " message on callback : %u",
-                      worker, am_id);
-            return UCS_OK;
-        }
+        desc_status = ucp_recv_desc_init_slowpath(data, 0, UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS,
+                                                  -(int)sizeof(*am_hdr), &desc);
+        ucp_recv_desc_set_name(desc, name);
+        desc->payload = payload;
+        desc->length  = data_length;
         recv_flags |= UCP_AM_RECV_ATTR_FLAG_DATA;
     }
 
@@ -1663,16 +1657,13 @@ ucs_status_t ucp_am_rndv_process_rts(void *arg, void *data, void *payload,
         hdr = NULL;
     }
 
-    desc_status = ucp_recv_desc_am_init(
-            worker, data, payload, length, 0, tl_flags, 0,
-            UCP_RECV_DESC_FLAG_RNDV | UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS, 0, 1,
-            "am_rndv_process_rts", &desc);
-    if (ucs_unlikely(UCS_STATUS_IS_ERR(desc_status))) {
-        ucs_error("worker %p could not allocate descriptor for active"
-                  " message RTS on callback %u", worker, am_id);
-        status = UCS_ERR_NO_MEMORY;
-        goto out_send_ats;
-    }
+    desc_status = ucp_recv_desc_init_slowpath(data, 0,
+                                              UCP_RECV_DESC_FLAG_RNDV |
+                                              UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS,
+                                              0, &desc);
+    ucp_recv_desc_set_name(desc, "am_rndv_process_rts");
+    desc->payload = payload;
+    desc->length  = length;
 
     param.recv_attr = UCP_AM_RECV_ATTR_FLAG_RNDV |
                       ucp_am_hdr_reply_ep(worker, am->flags, ep,
