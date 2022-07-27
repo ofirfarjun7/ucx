@@ -1866,6 +1866,13 @@ struct ucp_am_recv_param {
      * Endpoint, which can be used for the reply to this message.
      */
     ucp_ep_h           reply_ep;
+
+    /**
+     * Pointer to UCP data_desc.
+     * User should pass this field as data_desc parameter
+     * when calling ucp_am_recv_data_nbx.
+     */
+    void*              data_desc;
 };
 
 

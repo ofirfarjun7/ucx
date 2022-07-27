@@ -95,6 +95,7 @@ static struct {
     int          is_rndv;
     void         *desc;
     void         *recv_buf;
+    void         *data_desc;
 } am_data_desc = {0, 0, NULL, NULL};
 
 
@@ -503,8 +504,9 @@ ucs_status_t ucp_am_data_cb(void *arg, const void *header, size_t header_length,
          * which has to be passed to ucp_am_recv_data_nbx function to confirm
          * data transfer.
          */
-        am_data_desc.is_rndv = 1;
-        am_data_desc.desc    = data;
+        am_data_desc.is_rndv   = 1;
+        am_data_desc.desc      = data;
+        am_data_desc.data_desc = param->data_desc;
         return UCS_INPROGRESS;
     }
 
@@ -565,7 +567,7 @@ static int send_recv_am(ucp_worker_h ucp_worker, ucp_ep_h ep, int is_server,
             params.op_attr_mask |= UCP_OP_ATTR_FLAG_NO_IMM_CMPL;
             params.cb.recv_am    = am_recv_cb,
             request              = ucp_am_recv_data_nbx(ucp_worker,
-                                                        am_data_desc.desc,
+                                                        am_data_desc.data_desc,
                                                         msg, msg_length,
                                                         &params);
         } else {

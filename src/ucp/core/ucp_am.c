@@ -1203,6 +1203,7 @@ ucp_am_invoke_cb(ucp_worker_h worker, uint16_t am_id, void *user_hdr,
                  ucp_ep_h reply_ep, uint64_t recv_flags)
 {
     ucp_am_entry_t *am_cb = &ucs_array_elem(&worker->am.cbs, am_id);
+    ucp_recv_desc_t *desc = data;
     ucp_am_recv_param_t param;
     unsigned flags;
 
@@ -1214,7 +1215,8 @@ ucp_am_invoke_cb(ucp_worker_h worker, uint16_t am_id, void *user_hdr,
         param.recv_attr = recv_flags;
         param.reply_ep  = reply_ep;
 
-        return am_cb->cb(am_cb->context, user_hdr, user_hdr_length, data,
+        param.data_desc = desc + 1;
+        return am_cb->cb(am_cb->context, user_hdr, user_hdr_length, desc->payload,
                          data_length, &param);
     }
 
@@ -1283,7 +1285,7 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
         recv_flags |= UCP_AM_RECV_ATTR_FLAG_DATA;
     }
 
-    status = ucp_am_invoke_cb(worker, am_id, user_hdr, user_hdr_size, payload,
+    status = ucp_am_invoke_cb(worker, am_id, user_hdr, user_hdr_size, desc,
                               data_length, reply_ep, recv_flags);
     if (desc == NULL) {
         if (ucs_unlikely(status == UCS_INPROGRESS)) {
@@ -1675,8 +1677,9 @@ ucs_status_t ucp_am_rndv_process_rts(void *arg, void *data, void *payload,
     param.recv_attr = UCP_AM_RECV_ATTR_FLAG_RNDV |
                       ucp_am_hdr_reply_ep(worker, am->flags, ep,
                                           &param.reply_ep);
-    status = am_cb->cb(am_cb->context, hdr, am->header_length, desc + 1,
-                       rts->size, &param);
+    param.data_desc = desc + 1;
+    status          = am_cb->cb(am_cb->context, hdr, am->header_length, desc->payload,
+                                rts->size, &param);
     if (ucp_am_rdesc_in_progress(desc, status)) {
         /* User either wants to save descriptor for later use or initiated
          * rendezvous receive (by ucp_am_recv_data_nbx) in the callback. */
