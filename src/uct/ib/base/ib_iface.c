@@ -1431,14 +1431,16 @@ int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
     count = 0;
     while (count < n) {
         UCT_TL_IFACE_GET_RX_DESC(&iface->super, mp, desc, break);
-        desc->payload = UCS_PTR_BYTE_OFFSET(desc, iface->config.rx_payload_offset);
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr   =
-                (uintptr_t)uct_ib_iface_recv_desc_hdr(iface, desc);
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length = iface->config.seg_size;
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey   = desc->lkey;
+        desc->payload = UCS_PTR_BYTE_OFFSET(desc,
+                                            iface->config.rx_payload_offset);
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr = (uintptr_t)
+                uct_ib_iface_recv_desc_hdr(iface, desc);
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length =
+                iface->config.seg_size;
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = desc->lkey;
         wrs[count].ibwr.num_sge = 1;
         wrs[count].ibwr.wr_id   = (uintptr_t)desc;
-        wrs[count].ibwr.sg_list = wrs[count].sg;
+        wrs[count].ibwr.sg_list                        = wrs[count].sg;
         wrs[count].ibwr.next    = &wrs[count + 1].ibwr;
         ++count;
     }

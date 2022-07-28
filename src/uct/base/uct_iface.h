@@ -290,11 +290,8 @@ typedef struct uct_base_iface {
     } config;
 
     uct_user_allocator_get_buf_cb_t get_buf_cb;
-
     void                    *user_allocator_arg;
-    
     size_t                   user_allocator_payload_length;
-    
     size_t                   proto_header_length;
 
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
