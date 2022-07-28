@@ -490,8 +490,7 @@ UCS_CLASS_CLEANUP_FUNC(uct_iface_t)
 UCS_CLASS_DEFINE(uct_iface_t, void);
 
 static ucs_status_t
-uct_base_iface_default_get_buff_cb(void *arg,
-                                   uct_user_allocator_buffs_t *buf)
+uct_base_iface_default_get_buff_cb(void *arg, uct_user_allocator_buffs_t *buf)
 {
     ucs_mpool_t *mp = arg;
     uct_iface_recv_desc_t *obj;
@@ -505,7 +504,7 @@ uct_base_iface_default_get_buff_cb(void *arg,
         buf->memh       = obj->uct_memh;
         buf->buffers[i] = obj + 1;
     }
-    
+
     return UCS_OK;
 }
 
@@ -517,15 +516,14 @@ uct_base_iface_init_rx_buffers_allocator(uct_base_iface_t *iface,
     iface->get_buf_cb          = uct_base_iface_default_get_buff_cb;
     //TODO - ask Yossi about default value...
     iface->proto_header_length = params->proto_header_length ?
-                                 params->proto_header_length :
-                                 8;
+                                         params->proto_header_length :
+                                         8;
 
     if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR) != 0) {
-        if (
-            params->get_buff_cb                   == NULL ||
-            params->user_allocator_arg            == NULL ||
+        if (params->get_buff_cb == NULL || params->user_allocator_arg == NULL ||
             params->user_allocator_payload_length == 0) {
-            ucs_error("invalid user allocator: user_allocator_arg %p, get_buff_cb %p, user_allocator_payload_length %lu\n",
+            ucs_error("invalid user allocator: user_allocator_arg %p, "
+                      "get_buff_cb %p, user_allocator_payload_length %lu\n",
                       (void*)params->user_allocator_arg,
                       (void*)params->get_buff_cb,
                       params->user_allocator_payload_length);
@@ -534,8 +532,8 @@ uct_base_iface_init_rx_buffers_allocator(uct_base_iface_t *iface,
 
         iface->user_allocator_payload_length =
                 params->user_allocator_payload_length;
-        iface->get_buf_cb          = params->get_buff_cb;
-        iface->user_allocator_arg  = params->user_allocator_arg;
+        iface->get_buf_cb         = params->get_buff_cb;
+        iface->user_allocator_arg = params->user_allocator_arg;
     }
 
     return UCS_OK;

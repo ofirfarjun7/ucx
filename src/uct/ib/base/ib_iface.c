@@ -222,7 +222,8 @@ int uct_ib_iface_is_ib(uct_ib_iface_t *iface)
                                     iface->config.port_num);
 }
 
-void uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj, uct_mem_h memh)
+void uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj,
+                                 uct_mem_h memh)
 {
     uct_ib_iface_recv_desc_t *desc = obj;
 
@@ -1288,9 +1289,6 @@ UCS_CLASS_INIT_FUNC(uct_ib_iface_t, uct_iface_ops_t *tl_ops,
                                       rx_headroom -
                                       self->super.proto_header_length;
     self->config.seg_size           = init_attr->seg_size;
-    self->super.user_allocator_payload_length = self->super.user_allocator_payload_length ?
-                                                self->super.user_allocator_payload_length :
-                                                (init_attr->seg_size - init_attr->rx_hdr_len);
     self->config.roce_path_factor   = config->roce_path_factor;
     self->config.tx_max_poll        = config->tx.max_poll;
     self->config.rx_max_poll        = config->rx.max_poll;
@@ -1303,6 +1301,10 @@ UCS_CLASS_INIT_FUNC(uct_ib_iface_t, uct_iface_ops_t *tl_ops,
     self->release_desc.cb           = uct_ib_iface_release_desc;
     self->config.qp_type            = init_attr->qp_type;
     uct_ib_iface_set_path_mtu(self, config);
+    self->super.user_allocator_payload_length =
+            self->super.user_allocator_payload_length ?
+                    self->super.user_allocator_payload_length :
+                    (init_attr->seg_size - init_attr->rx_hdr_len);
 
     if (ucs_derived_of(worker, uct_priv_worker_t)->thread_mode == UCS_THREAD_MODE_MULTI) {
         ucs_error("IB transports do not support multi-threaded worker");
@@ -1430,7 +1432,8 @@ int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
     while (count < n) {
         UCT_TL_IFACE_GET_RX_DESC(&iface->super, mp, desc, break);
         desc->payload = UCS_PTR_BYTE_OFFSET(desc, iface->config.rx_payload_offset);
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr   = (uintptr_t)uct_ib_iface_recv_desc_hdr(iface, desc);
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr   =
+                (uintptr_t)uct_ib_iface_recv_desc_hdr(iface, desc);
         wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length = iface->config.seg_size;
         wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey   = desc->lkey;
         wrs[count].ibwr.num_sge = 1;

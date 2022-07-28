@@ -121,7 +121,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
     void *hdr;
     void *payload;
 
-    desc = buffs->buffers[buff_idx];
+    desc          = buffs->buffers[buff_idx];
     hdr           = uct_ib_iface_recv_desc_hdr(&iface->super.super, desc);
     payload       = desc->payload;
     /* Set receive data segment pointer. Length is pre-initialized. */
@@ -157,7 +157,8 @@ uct_rc_mlx5_iface_update_srq_res(uct_rc_iface_t *iface, uct_ib_mlx5_srq_t *srq,
 }
 
 static UCS_F_ALWAYS_INLINE void
-uct_rc_mlx5_iface_srq_post_recv_check_union(uct_rc_mlx5_iface_common_t *iface) {
+uct_rc_mlx5_iface_srq_post_recv_check_union(uct_rc_mlx5_iface_common_t *iface)
+{
     uct_ib_mlx5_srq_t *srq   = &iface->rx.srq;
     uct_rc_iface_t *rc_iface = &iface->super;
 
@@ -224,11 +225,11 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
     uct_rc_mlx5_iface_srq_post_recv_check_union(iface);
 
     wqe_index = srq->ready_idx;
-    buff_idx = 0;
+    buff_idx  = 0;
     //TODO - check with Yossi if we can replace loop with some direct calculation
     for (;;) {
         next_index = wqe_index + 1;
-        seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+        seg        = uct_ib_mlx5_srq_get_wqe(srq, next_index);
         if (UCS_CIRCULAR_COMPARE16(next_index, >, srq->free_idx)) {
             if (!seg->srq.free) {
                 break;
@@ -240,23 +241,24 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
     rx_buffers.num_of_buffers = buff_idx;
     UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super.super.super, iface->super.rx.mps,
                                 &rx_buffers, return UCS_ERR_NO_MEMORY);
-        
+
     wqe_index = srq->ready_idx;
-    buff_idx = 0;
+    buff_idx  = 0;
     for (;;) {
         next_index = wqe_index + 1;
-        seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+        seg        = uct_ib_mlx5_srq_get_wqe(srq, next_index);
         if (UCS_CIRCULAR_COMPARE16(next_index, >, srq->free_idx)) {
             if (!seg->srq.free) {
                 break;
             }
 
             ucs_assert(next_index == (uint16_t)(srq->free_idx + 1));
-            seg->srq.free  = 0;
-            srq->free_idx  = next_index;
+            seg->srq.free = 0;
+            srq->free_idx = next_index;
         }
 
-        status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, buff_idx, &rx_buffers);
+        status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, buff_idx,
+                                                   &rx_buffers);
 
         if (status != UCS_OK) {
             break;
@@ -268,7 +270,8 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
 
     count = wqe_index - srq->sw_pi;
     uct_rc_mlx5_iface_update_srq_res(rc_iface, srq, wqe_index, count);
-    ucs_assert(uct_ib_mlx5_srq_get_wqe(srq, srq->mask)->srq.next_wqe_index == 0);
+    ucs_assert(uct_ib_mlx5_srq_get_wqe(srq, srq->mask)->srq.next_wqe_index ==
+               0);
     return count;
 }
 
@@ -285,7 +288,7 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll(uct_rc_mlx5_iface_common_t *iface)
 
     wqe_index = srq->ready_idx;
     seg       = uct_ib_mlx5_srq_get_wqe(srq, wqe_index);
-    count = 0;
+    count     = 0;
     for (;;) {
         next_index = ntohs(seg->srq.next_wqe_index);
         if (next_index == (srq->free_idx & srq->mask)) {
@@ -307,7 +310,8 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll(uct_rc_mlx5_iface_common_t *iface)
     return count;
 }
 
-unsigned uct_rc_mlx5_iface_srq_post_recv_ll_sge(uct_rc_mlx5_iface_common_t *iface)
+unsigned
+uct_rc_mlx5_iface_srq_post_recv_ll_sge(uct_rc_mlx5_iface_common_t *iface)
 {
     uct_ib_mlx5_srq_t *srq     = &iface->rx.srq;
     uct_rc_iface_t *rc_iface   = &iface->super;
@@ -338,7 +342,7 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll_sge(uct_rc_mlx5_iface_common_t *ifac
 
     wqe_index = srq->ready_idx;
     seg       = uct_ib_mlx5_srq_get_wqe(srq, wqe_index);
-    count = 0;
+    count     = 0;
     for (;;) {
         next_index = ntohs(seg->srq.next_wqe_index);
         if (next_index == (srq->free_idx & srq->mask)) {
@@ -346,7 +350,8 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll_sge(uct_rc_mlx5_iface_common_t *ifac
         }
         seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
 
-        status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, count, &rx_buffers);
+        status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, count,
+                                                   &rx_buffers);
 
         if (status != UCS_OK) {
             break;

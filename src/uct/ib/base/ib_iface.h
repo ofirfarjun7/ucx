@@ -373,7 +373,8 @@ extern ucs_config_field_t uct_ib_iface_config_table[];
 extern const char *uct_ib_mtu_values[];
 
 
-void uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj, uct_mem_h memh);
+void uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj,
+                                 uct_mem_h memh);
 
 
 /**

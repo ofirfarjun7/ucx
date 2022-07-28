@@ -186,13 +186,16 @@ uct_ud_mlx5_iface_post_recv(uct_ud_mlx5_iface_t *iface)
         ucs_prefetch(rx_wqes + next_pi);
         UCT_TL_IFACE_GET_RX_DESC(&iface->super.super.super, &iface->super.rx.mp,
                                  desc, break);
-        desc->payload = UCS_PTR_BYTE_OFFSET(desc, iface->super.super.config.rx_payload_offset);
-        rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(desc->lkey);
+        desc->payload = UCS_PTR_BYTE_OFFSET(
+                desc, iface->super.super.config.rx_payload_offset);
+        rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(
+                desc->lkey);
         rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].addr = htobe64(
                 (uintptr_t)uct_ib_iface_recv_desc_hdr(&iface->super.super,
                                                       desc));
-        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].lkey = htonl(UCT_IB_IFACE_TERMINATE_SCATTER_LIST_MKEY);
-        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].addr = htobe64(0);
+        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].lkey   = htonl(
+                UCT_IB_IFACE_TERMINATE_SCATTER_LIST_MKEY);
+        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].addr   = htobe64(0);
         pi = next_pi;
     }
     if (ucs_unlikely(count == 0)) {

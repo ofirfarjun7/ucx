@@ -419,9 +419,8 @@ ucs_status_t ucp_proto_rndv_rtr_handle_atp(void *arg, void *data, void *payload,
 }
 
 //TODO - Discuss with Yossi (ucp_request_data_hdr_t size always < ucp_am_hdr_t size?)
-ucs_status_t
-ucp_proto_rndv_handle_data(void *arg, void *data, void *payload,
-                           size_t length, unsigned flags)
+ucs_status_t ucp_proto_rndv_handle_data(void *arg, void *data, void *payload,
+                                        size_t length, unsigned flags)
 {
     ucp_worker_h worker = arg;
     size_t recv_len     = length - sizeof(ucp_request_data_hdr_t);
@@ -434,10 +433,10 @@ ucp_proto_rndv_handle_data(void *arg, void *data, void *payload,
     ucp_request_t *req;
     ucp_request_data_hdr_t *rndv_data_hdr;
 
-    ucp_am_concat_msg_hdr(data, payload, length, rndv_data_hdr, (ucp_request_data_hdr_t*));
-            UCP_SEND_REQUEST_GET_BY_ID(&req, worker, rndv_data_hdr->req_id, 0,
-                                       return UCS_OK, "RNDV_DATA %p",
-                                       rndv_data_hdr);
+    ucp_am_concat_msg_hdr(data, payload, length, rndv_data_hdr,
+                          (ucp_request_data_hdr_t*));
+    UCP_SEND_REQUEST_GET_BY_ID(&req, worker, rndv_data_hdr->req_id, 0,
+                               return UCS_OK, "RNDV_DATA %p", rndv_data_hdr);
 
     status = ucp_datatype_iter_unpack(&req->send.state.dt_iter, worker,
                                       recv_len, rndv_data_hdr->offset,

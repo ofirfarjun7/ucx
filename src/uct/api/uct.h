@@ -1178,10 +1178,10 @@ struct uct_iface_params {
 
     /* User allocator get cb */
     uct_user_allocator_get_buf_cb_t              get_buff_cb;
-    
+
     /* User allocator payload length */
     size_t                                       user_allocator_payload_length;
-    
+
     /* User allocator arg */
     void                                         *user_allocator_arg;
 

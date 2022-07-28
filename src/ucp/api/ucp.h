@@ -1234,7 +1234,7 @@ typedef struct ucp_worker_attr {
  */
 typedef ucs_status_t (*ucp_mem_allocator_cb_t)(void *allocator_obj,
                                                size_t num_of_buffers,
-                                               void** buffers, ucp_mem_h *memh);
+                                               void **buffers, ucp_mem_h *memh);
 
 
 /**
@@ -1341,7 +1341,7 @@ typedef struct ucp_worker_params {
     * using @ref ucp_conn_request_query.
     */
     uint64_t               client_id;
-    
+
     /**
     * User memory allocator to be used for allocating payload rx buffers.
     */
@@ -1874,7 +1874,7 @@ struct ucp_am_recv_param {
      * User should pass this field as data_desc parameter
      * when calling ucp_am_recv_data_nbx.
      */
-    void*              data_desc;
+    void               *data_desc;
 };
 
 

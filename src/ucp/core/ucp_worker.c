@@ -873,12 +873,12 @@ static uint64_t ucp_worker_get_exclude_caps(ucp_worker_h worker)
     return exclude_caps;
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t 
+static UCS_F_ALWAYS_INLINE ucs_status_t
 ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem,
                         unsigned md_index, uct_mem_h *uct_memh)
 {
     unsigned uct_memh_idx = 0;
-    unsigned md_bit_idx = 0;
+    unsigned md_bit_idx   = 0;
     ucp_md_map_t md_map_p;
 
     if (ucs_unlikely(md_index >= UCP_MD_INDEX_BITS)) {
@@ -907,9 +907,8 @@ ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem,
     return UCS_OK;
 }
 
-UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_user_allocator_get_cb,
-                 (arg, buffs), void *arg,
-                 uct_user_allocator_buffs_t *buffs)
+UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
+                 void *arg, uct_user_allocator_buffs_t *buffs)
 {
     const ucp_worker_iface_t *wiface = (ucp_worker_iface_t*)arg;
     const ucp_worker_h worker        = wiface->worker;
@@ -925,8 +924,8 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_user_allocator_get_cb,
     }
 
     status = worker->user_mem_allocator.get_buf(worker->user_mem_allocator.obj,
-                                                buffs->num_of_buffers, buffs->buffers,
-                                                &ucp_memh);
+                                                buffs->num_of_buffers,
+                                                buffs->buffers, &ucp_memh);
 
     if (ucs_unlikely(status != UCS_OK)) {
         //TODO - alert/log maybe?
@@ -936,9 +935,10 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_user_allocator_get_cb,
     resource = &context->tl_rscs[wiface->rsc_index];
     md_index = resource->md_index;
 
-    if (ucs_unlikely(ucp_worker_get_uct_memh(ucp_memh, 
-                                worker->user_mem_allocator.uct_memh_idx_mem,
-                                md_index, &buffs->memh) != UCS_OK)) {
+    if (ucs_unlikely(ucp_worker_get_uct_memh(
+                             ucp_memh,
+                             worker->user_mem_allocator.uct_memh_idx_mem,
+                             md_index, &buffs->memh) != UCS_OK)) {
         return UCS_ERR_NO_ELEM;
     }
 
@@ -1156,7 +1156,7 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
 
     iface_params.user_allocator_payload_length = 0;
     iface_params.get_buff_cb                   = NULL;
-    iface_params.proto_header_length = sizeof(ucp_am_hdr_t);
+    iface_params.proto_header_length           = sizeof(ucp_am_hdr_t);
     if (worker->user_mem_allocator.obj) {
         iface_params.get_buff_cb = ucp_worker_user_allocator_get_cb;
         iface_params.user_allocator_payload_length =
@@ -2423,12 +2423,11 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
     }
 
     if (params->field_mask & UCP_WORKER_PARAM_FIELD_USER_ALLOCATOR) {
-        if ((params->allocator_obj == NULL) ||
-            (params->allocator_cb == NULL) ||
+        if ((params->allocator_obj == NULL) || (params->allocator_cb == NULL) ||
             (params->allocator_payload_length == 0)) {
-            ucs_error("invalid user allocator: allocator_obj %p, allocator_cb %p, payload_length %lu\n",
-                      (void*)params->allocator_obj,
-                      (void*)params->allocator_cb,
+            ucs_error("invalid user allocator: allocator_obj %p, allocator_cb "
+                      "%p, payload_length %lu\n",
+                      (void*)params->allocator_obj, (void*)params->allocator_cb,
                       params->allocator_payload_length);
             status = UCS_ERR_INVALID_PARAM;
             goto err_free;
@@ -2436,9 +2435,10 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
 
         memset(worker->user_mem_allocator.uct_memh_idx_mem, 0,
                sizeof(worker->user_mem_allocator.uct_memh_idx_mem));
-        worker->user_mem_allocator.payload_length = params->allocator_payload_length;
-        worker->user_mem_allocator.get_buf        = params->allocator_cb;
-        worker->user_mem_allocator.obj            = params->allocator_obj;
+        worker->user_mem_allocator.payload_length =
+                params->allocator_payload_length;
+        worker->user_mem_allocator.get_buf = params->allocator_cb;
+        worker->user_mem_allocator.obj     = params->allocator_obj;
     }
 
     /* Create statistics */

@@ -594,8 +594,8 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
                                   uct_ib_iface_recv_desc_init, name);
 
     status = uct_iface_param_am_alignment(
-            params, iface->super.user_allocator_payload_length,
-            0, sizeof(uct_ib_iface_recv_desc_t), &alignment, &align_offset);
+            params, iface->super.user_allocator_payload_length, 0,
+            sizeof(uct_ib_iface_recv_desc_t), &alignment, &align_offset);
     if (status != UCS_OK) {
         return status;
     }

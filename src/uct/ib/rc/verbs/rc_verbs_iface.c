@@ -417,25 +417,28 @@ void uct_rc_verbs_iface_common_progress_enable(uct_iface_h tl_iface, unsigned fl
                                       flags);
 }
 
-static int uct_rc_verbs_iface_prepare_rx_wrs_rc(uct_ib_iface_t *iface, ucs_mpool_t *mp,
-                                                uct_ib_recv_wr_t *wrs, unsigned n)
+static int
+uct_rc_verbs_iface_prepare_rx_wrs_rc(uct_ib_iface_t *iface, ucs_mpool_t *mp,
+                                     uct_ib_recv_wr_t *wrs, unsigned n)
 {
     uct_ib_iface_recv_desc_t *desc;
     uct_user_allocator_buffs_t rx_buffers;
     unsigned count;
 
-    count = 0;
+    count                     = 0;
     rx_buffers.num_of_buffers = n;
     UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super, mp, &rx_buffers, return count);
     while (count < n) {
         desc = rx_buffers.buffers[count];
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr   =
-                (uintptr_t)uct_ib_iface_recv_desc_hdr(iface, desc);
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length = uct_ib_iface_tl_hdr_length(iface);
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey   = desc->lkey;
-        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].addr     = (uintptr_t)desc->payload;
-        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].length   = iface->super.user_allocator_payload_length;
-        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].lkey     = desc->payload_lkey;
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].addr = (uintptr_t)
+                uct_ib_iface_recv_desc_hdr(iface, desc);
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length =
+                uct_ib_iface_tl_hdr_length(iface);
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = desc->lkey;
+        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].addr = (uintptr_t)desc->payload;
+        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].length =
+                iface->super.user_allocator_payload_length;
+        wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].lkey = desc->payload_lkey;
 
         wrs[count].ibwr.num_sge = 2;
         wrs[count].ibwr.wr_id   = (uintptr_t)desc;

@@ -197,7 +197,8 @@ UCS_PROFILE_FUNC_VOID(ucp_am_data_release, (worker, data),
     ucp_recv_desc_t *rdesc = (ucp_recv_desc_t *)data - 1;
     ucp_rndv_rts_hdr_t *rts;
 
-    ucp_am_concat_msg_hdr(data, rdesc->payload, sizeof(*rts), rts, (ucp_rndv_rts_hdr_t*));
+    ucp_am_concat_msg_hdr(data, rdesc->payload, sizeof(*rts), rts,
+                          (ucp_rndv_rts_hdr_t*));
     if (ucs_unlikely(rdesc->flags & UCP_RECV_DESC_FLAG_MALLOC)) {
         ucp_am_release_long_desc(rdesc);
         return;
@@ -1074,7 +1075,8 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_am_recv_data_nbx,
     ucs_status_t status;
     size_t recv_length, rkey_length;
 
-    ucp_am_concat_msg_hdr(data_desc, payload, desc->length, rts, (ucp_rndv_rts_hdr_t*));
+    ucp_am_concat_msg_hdr(data_desc, payload, desc->length, rts,
+                          (ucp_rndv_rts_hdr_t*));
     /* Sanity check if the descriptor has been released */
     if (ENABLE_PARAMS_CHECK &&
         ucs_unlikely(desc->flags & UCP_RECV_DESC_FLAG_RELEASED)) {
@@ -1214,8 +1216,8 @@ ucp_am_invoke_cb(ucp_worker_h worker, uint16_t am_id, void *user_hdr,
         param.reply_ep  = reply_ep;
 
         param.data_desc = desc + 1;
-        return am_cb->cb(am_cb->context, user_hdr, user_hdr_length, desc->payload,
-                         data_length, &param);
+        return am_cb->cb(am_cb->context, user_hdr, user_hdr_length,
+                         desc->payload, data_length, &param);
     }
 
     if (ucs_unlikely(user_hdr_length != 0)) {
@@ -1228,7 +1230,8 @@ ucp_am_invoke_cb(ucp_worker_h worker, uint16_t am_id, void *user_hdr,
     flags = (recv_flags & UCP_AM_RECV_ATTR_FLAG_DATA) ?
             UCP_CB_PARAM_FLAG_DATA : 0;
 
-    return am_cb->cb_old(am_cb->context, desc->payload, data_length, reply_ep, flags);
+    return am_cb->cb_old(am_cb->context, desc->payload, data_length, reply_ep,
+                         flags);
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -1266,12 +1269,13 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
      * memory copy of the user header if the message is short/inlined
      * (i.e. received without UCT_CB_PARAM_FLAG_DESC flag).
      */
-    desc_status = ucp_recv_desc_init_slowpath(data, 0, UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS,
-                                              -(int)sizeof(*am_hdr), &desc);
+    desc_status = ucp_recv_desc_init_slowpath(
+            data, 0, UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS, -(int)sizeof(*am_hdr),
+            &desc);
     ucp_recv_desc_set_name(desc, name);
     desc->payload = payload;
     desc->length  = data_length;
-    recv_flags |= UCP_AM_RECV_ATTR_FLAG_DATA;
+    recv_flags   |= UCP_AM_RECV_ATTR_FLAG_DATA;
     status = ucp_am_invoke_cb(worker, am_id, user_hdr, user_hdr_size, desc,
                               data_length, reply_ep, recv_flags);
     if (desc == NULL) {
@@ -1647,10 +1651,10 @@ ucs_status_t ucp_am_rndv_process_rts(void *arg, void *data, void *payload,
         hdr = NULL;
     }
 
-    desc_status = ucp_recv_desc_init_slowpath(data, 0,
-                                              UCP_RECV_DESC_FLAG_RNDV |
-                                              UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS,
-                                              0, &desc);
+    desc_status = ucp_recv_desc_init_slowpath(
+            data, 0,
+            UCP_RECV_DESC_FLAG_RNDV | UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS, 0,
+            &desc);
     ucp_recv_desc_set_name(desc, "am_rndv_process_rts");
     desc->payload = payload;
     desc->length  = length;
@@ -1659,8 +1663,8 @@ ucs_status_t ucp_am_rndv_process_rts(void *arg, void *data, void *payload,
                       ucp_am_hdr_reply_ep(worker, am->flags, ep,
                                           &param.reply_ep);
     param.data_desc = desc + 1;
-    status          = am_cb->cb(am_cb->context, hdr, am->header_length, desc->payload,
-                                rts->size, &param);
+    status = am_cb->cb(am_cb->context, hdr, am->header_length, desc->payload,
+                       rts->size, &param);
     if (ucp_am_rdesc_in_progress(desc, status)) {
         /* User either wants to save descriptor for later use or initiated
          * rendezvous receive (by ucp_am_recv_data_nbx) in the callback. */
