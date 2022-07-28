@@ -1232,7 +1232,9 @@ typedef struct ucp_worker_attr {
  * 
  * @return Error code as defined by @ref ucs_status_t
  */
-typedef ucs_status_t (*ucp_mem_allocator_cb_t)(void *allocator_obj, size_t num_of_buffers, void** buffers, ucp_mem_h *memh);
+typedef ucs_status_t (*ucp_mem_allocator_cb_t)(void *allocator_obj,
+                                               size_t num_of_buffers,
+                                               void** buffers, ucp_mem_h *memh);
 
 
 /**

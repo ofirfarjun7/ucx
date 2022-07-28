@@ -186,15 +186,13 @@ uct_ud_mlx5_iface_post_recv(uct_ud_mlx5_iface_t *iface)
         ucs_prefetch(rx_wqes + next_pi);
         UCT_TL_IFACE_GET_RX_DESC(&iface->super.super.super, &iface->super.rx.mp,
                                  desc, break);
-        rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(
-                desc->lkey);
+        desc->payload = UCS_PTR_BYTE_OFFSET(desc, iface->super.super.config.rx_payload_offset);
+        rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(desc->lkey);
         rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].addr = htobe64(
                 (uintptr_t)uct_ib_iface_recv_desc_hdr(&iface->super.super,
                                                       desc));
-        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].lkey = htonl(desc->lkey);
-        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].addr = htobe64(
-                (uintptr_t)uct_ib_iface_recv_desc_payload(&iface->super.super,
-                                                          desc));
+        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].lkey = htonl(UCT_IB_IFACE_TERMINATE_SCATTER_LIST_MKEY);
+        rx_wqes[pi].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].addr = htobe64(0);
         pi = next_pi;
     }
     if (ucs_unlikely(count == 0)) {
@@ -907,7 +905,6 @@ static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t, uct_md_h tl_md,
     unsigned tx_queue_len              = config->super.super.tx.queue_len;
     size_t sq_length;
     ucs_status_t status;
-    size_t hdr_len;
     int i;
 
     ucs_trace_func("");
@@ -958,12 +955,10 @@ static UCS_CLASS_INIT_FUNC(uct_ud_mlx5_iface_t, uct_md_h tl_md,
     }
 
     /* write buffer sizes */
-    hdr_len = uct_ib_iface_tl_hdr_length(&self->super.super);
     for (i = 0; i <= self->rx.wq.mask; i++) {
         self->rx.wq.wqes[i].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].byte_count =
-                htonl(hdr_len);
-        self->rx.wq.wqes[i].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].byte_count =
                 htonl(self->super.super.config.seg_size);
+        self->rx.wq.wqes[i].sg_list[UCT_IB_RX_SG_PAYLOAD_IDX].byte_count = 0;
     }
 
     while (self->super.rx.available >= self->super.super.config.rx_max_batch) {

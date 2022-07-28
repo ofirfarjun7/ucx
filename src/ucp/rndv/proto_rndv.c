@@ -809,8 +809,9 @@ ucs_status_t ucp_proto_rndv_handle_rtr(void *arg, void *data, void *payload,
         ucp_request_set_callback(freq, send.cb,
                                  ucp_proto_rndv_send_complete_one);
 
-        ucp_datatype_iter_slice(&req->send.state.dt_iter, rtr->offset, rtr->size,
-                                &freq->send.state.dt_iter, &sg_count);
+        ucp_datatype_iter_slice(&req->send.state.dt_iter, rtr->offset,
+                                rtr->size, &freq->send.state.dt_iter,
+                                &sg_count);
 
         /* Send rendezvous fragment, when it's completed update 'remaining'
          * and complete 'req' when it reaches zero

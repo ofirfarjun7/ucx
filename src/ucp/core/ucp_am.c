@@ -879,8 +879,6 @@ ucp_am_send_req(ucp_request_t *req, size_t count,
             return UCS_STATUS_PTR(status);
         }
 
-        // ucs_assert(ucp_am_send_req_total_size(req) >= rndv_thresh);
-
         status = ucp_am_send_start_rndv(req, param);
         if (status != UCS_OK) {
             return UCS_STATUS_PTR(status);
@@ -1230,7 +1228,7 @@ ucp_am_invoke_cb(ucp_worker_h worker, uint16_t am_id, void *user_hdr,
     flags = (recv_flags & UCP_AM_RECV_ATTR_FLAG_DATA) ?
             UCP_CB_PARAM_FLAG_DATA : 0;
 
-    return am_cb->cb_old(am_cb->context, data, data_length, reply_ep, flags);
+    return am_cb->cb_old(am_cb->context, desc->payload, data_length, reply_ep, flags);
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
@@ -1241,7 +1239,6 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
     ucp_recv_desc_t *desc    = NULL;
     uint16_t am_id           = am_hdr->am_id;
     uint32_t user_hdr_size   = am_hdr->header_length;
-    ucp_am_entry_t *am_cb    = &ucs_array_elem(&worker->am.cbs, am_id);
     void *data               = am_hdr + 1;
     size_t data_length       = total_length -
                                (sizeof(*am_hdr) + am_hdr->header_length);
@@ -1255,30 +1252,26 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
      * from the AM callback directly. The only exception is inline data when
      * AM callback is registered without UCP_AM_FLAG_PERSISTENT_DATA flag.
      */
-    if ((am_flags & UCT_CB_PARAM_FLAG_DESC) ||
-        (am_cb->flags & UCP_AM_FLAG_PERSISTENT_DATA)) {
-
-        /* UCT may not support AM data alignment. If unaligned data ptr is
-         * provided in UCT descriptor, allocate new aligned data buffer from UCP
-         * AM mpool instead of using UCT descriptor directly.
-         */
-        if (ucs_unlikely((uintptr_t)data % worker->am.alignment)) {
-            am_flags &= ~UCT_CB_PARAM_FLAG_DESC;
-        }
-
-        /* User header can not be accessed outside the user callback, so do not
-         * include it to the total descriptor length. It helps to avoid extra
-         * memory copy of the user header if the message is short/inlined
-         * (i.e. received without UCT_CB_PARAM_FLAG_DESC flag).
-         */
-        desc_status = ucp_recv_desc_init_slowpath(data, 0, UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS,
-                                                  -(int)sizeof(*am_hdr), &desc);
-        ucp_recv_desc_set_name(desc, name);
-        desc->payload = payload;
-        desc->length  = data_length;
-        recv_flags |= UCP_AM_RECV_ATTR_FLAG_DATA;
+    /* UCT may not support AM data alignment. If unaligned data ptr is
+     * provided in UCT descriptor, allocate new aligned data buffer from UCP
+     * AM mpool instead of using UCT descriptor directly.
+     */
+    //TODO - ask Yossi about it
+    if (ucs_unlikely((uintptr_t)data % worker->am.alignment)) {
+        am_flags &= ~UCT_CB_PARAM_FLAG_DESC;
     }
 
+    /* User header can not be accessed outside the user callback, so do not
+     * include it to the total descriptor length. It helps to avoid extra
+     * memory copy of the user header if the message is short/inlined
+     * (i.e. received without UCT_CB_PARAM_FLAG_DESC flag).
+     */
+    desc_status = ucp_recv_desc_init_slowpath(data, 0, UCP_RECV_DESC_FLAG_AM_CB_INPROGRESS,
+                                              -(int)sizeof(*am_hdr), &desc);
+    ucp_recv_desc_set_name(desc, name);
+    desc->payload = payload;
+    desc->length  = data_length;
+    recv_flags |= UCP_AM_RECV_ATTR_FLAG_DATA;
     status = ucp_am_invoke_cb(worker, am_id, user_hdr, user_hdr_size, desc,
                               data_length, reply_ep, recv_flags);
     if (desc == NULL) {
@@ -1636,13 +1629,10 @@ ucs_status_t ucp_am_rndv_process_rts(void *arg, void *data, void *payload,
         goto out_send_ats;
     }
 
-    UCP_WORKER_GET_VALID_EP_BY_ID(
-            &ep, worker, rts->sreq.ep_id,
-            {
-                status = UCS_ERR_CANCELED;
-                goto out_send_ats;
-            },
-            "AM RTS");
+    UCP_WORKER_GET_VALID_EP_BY_ID(&ep, worker, rts->sreq.ep_id,
+                                  { status = UCS_ERR_CANCELED;
+                                     goto out_send_ats; },
+                                  "AM RTS");
 
     if (ucs_unlikely(!ucp_am_recv_check_id(worker, am_id))) {
         status = UCS_ERR_INVALID_PARAM;

@@ -23,7 +23,6 @@
 #include <ucp/stream/stream.h>
 #include <ucs/config/parser.h>
 #include <ucs/debug/debug_int.h>
-#include <ucs/datastruct/ucs_buffers_agent.h>
 #include <ucs/datastruct/mpool.inl>
 #include <ucs/datastruct/ptr_map.inl>
 #include <ucs/datastruct/queue.h>
@@ -882,17 +881,18 @@ ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem,
     unsigned md_bit_idx = 0;
     ucp_md_map_t md_map_p;
 
-    if (md_index >= UCP_MD_INDEX_BITS) {
+    if (ucs_unlikely(md_index >= UCP_MD_INDEX_BITS)) {
         return UCS_ERR_NO_DEVICE;
     }
 
     md_map_p = ucp_memh->md_map;
-    if (!(md_map_p & UCS_BIT(md_index))) {
+    if (ucs_unlikely((md_map_p & UCS_BIT(md_index)) == 0)) {
         //TODO - change error message?
         return UCS_ERR_NO_RESOURCE;
     }
 
-    if (!uct_memh_idx_mem[md_index]) {
+    //TODO - maybe remove uct_memh_idx_mem, it can cause cache miss?
+    if (ucs_unlikely(uct_memh_idx_mem[md_index] == 0)) {
         ucs_for_each_bit(md_bit_idx, md_map_p) {
             if (md_bit_idx == md_index) {
                 break;
@@ -907,9 +907,9 @@ ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem,
     return UCS_OK;
 }
 
-UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_rx_buffers_agent_get,
-                 (arg, buf), void *arg,
-                 ucs_buffers_agent_buffer_t *buf)
+UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_user_allocator_get_cb,
+                 (arg, buffs), void *arg,
+                 uct_user_allocator_buffs_t *buffs)
 {
     const ucp_worker_iface_t *wiface = (ucp_worker_iface_t*)arg;
     const ucp_worker_h worker        = wiface->worker;
@@ -919,16 +919,16 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_rx_buffers_agent_get,
     unsigned md_index;
     ucp_mem_h ucp_memh;
 
-    if (buf == NULL) {
+    if (ucs_unlikely(buffs == NULL)) {
         //TODO - alert/log maybe?
         return UCS_ERR_NO_ELEM;
     }
 
     status = worker->user_mem_allocator.get_buf(worker->user_mem_allocator.obj,
-                                                buf->num_of_buffers, buf->buffers,
+                                                buffs->num_of_buffers, buffs->buffers,
                                                 &ucp_memh);
 
-    if (status != UCS_OK) {
+    if (ucs_unlikely(status != UCS_OK)) {
         //TODO - alert/log maybe?
         return status;
     }
@@ -936,9 +936,9 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_rx_buffers_agent_get,
     resource = &context->tl_rscs[wiface->rsc_index];
     md_index = resource->md_index;
 
-    if (ucp_worker_get_uct_memh(ucp_memh, 
+    if (ucs_unlikely(ucp_worker_get_uct_memh(ucp_memh, 
                                 worker->user_mem_allocator.uct_memh_idx_mem,
-                                md_index, &buf->memh) != UCS_OK) {
+                                md_index, &buffs->memh) != UCS_OK)) {
         return UCS_ERR_NO_ELEM;
     }
 
@@ -1154,11 +1154,12 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
     worker->num_ifaces = num_ifaces;
     iface_id           = 0;
 
-    iface_params.rx_buffers_agent_payload_length = 0;
-    iface_params.rx_buffers_agent_get            = NULL;
+    iface_params.user_allocator_payload_length = 0;
+    iface_params.get_buff_cb                   = NULL;
+    iface_params.proto_header_length = sizeof(ucp_am_hdr_t);
     if (worker->user_mem_allocator.obj) {
-        iface_params.rx_buffers_agent_get = ucp_worker_rx_buffers_agent_get;
-        iface_params.rx_buffers_agent_payload_length =
+        iface_params.get_buff_cb = ucp_worker_user_allocator_get_cb;
+        iface_params.user_allocator_payload_length =
                 worker->user_mem_allocator.payload_length;
     }
 
@@ -1176,7 +1177,7 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
         }
 
         if (worker->user_mem_allocator.obj) {
-            iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT;
+            iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR;
         }
 
         status = ucp_worker_iface_open(worker, tl_id, &iface_params,
@@ -1314,9 +1315,9 @@ ucs_status_t ucp_worker_iface_open(ucp_worker_h worker, ucp_rsc_index_t tl_id,
     wiface->post_count       = 0;
     wiface->flags            = 0;
 
-    iface_params->rx_buffers_agent_arg = NULL;
+    iface_params->user_allocator_arg = NULL;
     if (worker->user_mem_allocator.obj) {
-        iface_params->rx_buffers_agent_arg = wiface;
+        iface_params->user_allocator_arg = wiface;
     }
 
     /* Read interface or md configuration */
@@ -2425,7 +2426,7 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
         if ((params->allocator_obj == NULL) ||
             (params->allocator_cb == NULL) ||
             (params->allocator_payload_length == 0)) {
-            ucs_error("invalid memory allocator: allocator_obj %p, allocator_cb %p, payload_length %lu\n",
+            ucs_error("invalid user allocator: allocator_obj %p, allocator_cb %p, payload_length %lu\n",
                       (void*)params->allocator_obj,
                       (void*)params->allocator_cb,
                       params->allocator_payload_length);

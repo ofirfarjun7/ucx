@@ -490,18 +490,18 @@ UCS_CLASS_CLEANUP_FUNC(uct_iface_t)
 UCS_CLASS_DEFINE(uct_iface_t, void);
 
 static ucs_status_t
-uct_base_iface_rx_buffers_default_agent_get(void *arg,
-                                            ucs_buffers_agent_buffer_t *buf)
+uct_base_iface_default_get_buff_cb(void *arg,
+                                   uct_user_allocator_buffs_t *buf)
 {
-    uct_iface_recv_desc_t *obj;
     ucs_mpool_t *mp = arg;
+    uct_iface_recv_desc_t *obj;
     size_t i;
+
     for (i = 0; i < buf->num_of_buffers; i++) {
         obj = ucs_mpool_get_inline(mp);
-        if (obj == NULL) {
+        if (ucs_unlikely(obj == NULL)) {
             return UCS_ERR_NO_ELEM;
         }
-
         buf->memh       = obj->uct_memh;
         buf->buffers[i] = obj + 1;
     }
@@ -509,33 +509,33 @@ uct_base_iface_rx_buffers_default_agent_get(void *arg,
     return UCS_OK;
 }
 
-static void uct_base_iface_rx_buffers_default_agent_put(void *buf)
+static ucs_status_t
+uct_base_iface_init_rx_buffers_allocator(uct_base_iface_t *iface,
+                                         const uct_iface_params_t *params)
 {
-    ucs_mpool_put_inline(buf);
-}
+    iface->user_allocator_arg  = NULL;
+    iface->get_buf_cb          = uct_base_iface_default_get_buff_cb;
+    //TODO - ask Yossi about default value...
+    iface->proto_header_length = params->proto_header_length ?
+                                 params->proto_header_length :
+                                 8;
 
-static ucs_buffers_agent_ops_t uct_base_iface_rx_buffers_default_agent_ops =
-        {uct_base_iface_rx_buffers_default_agent_get,
-         uct_base_iface_rx_buffers_default_agent_put};
-
-ucs_status_t
-uct_base_iface_init_rx_buffers_agent(uct_base_iface_t *iface,
-                                     const uct_iface_params_t *params)
-{
-    iface->rx_buffers_agent_arg = NULL;
-    iface->rx_buffers_agent_ops = &uct_base_iface_rx_buffers_default_agent_ops;
-
-    if ((params->field_mask & UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT) != 0) {
-        if (params->rx_buffers_agent_arg == NULL ||
-            params->rx_buffers_agent_payload_length == 0) {
+    if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR) != 0) {
+        if (
+            params->get_buff_cb                   == NULL ||
+            params->user_allocator_arg            == NULL ||
+            params->user_allocator_payload_length == 0) {
+            ucs_error("invalid user allocator: user_allocator_arg %p, get_buff_cb %p, user_allocator_payload_length %lu\n",
+                      (void*)params->user_allocator_arg,
+                      (void*)params->get_buff_cb,
+                      params->user_allocator_payload_length);
             return UCS_ERR_INVALID_PARAM;
         }
 
-        iface->rx_buffers_agent_payload_length =
-                params->rx_buffers_agent_payload_length;
-        iface->rx_buffers_agent_ops->get_buf = params->rx_buffers_agent_get;
-        iface->rx_buffers_agent_ops->put_buf = ucs_empty_function;
-        iface->rx_buffers_agent_arg = params->rx_buffers_agent_arg;
+        iface->user_allocator_payload_length =
+                params->user_allocator_payload_length;
+        iface->get_buf_cb          = params->get_buff_cb;
+        iface->user_allocator_arg  = params->user_allocator_arg;
     }
 
     return UCS_OK;
@@ -577,7 +577,7 @@ UCS_CLASS_INIT_FUNC(uct_base_iface_t, uct_iface_ops_t *ops,
                                                     ERR_HANDLER_ARG, NULL);
     self->progress_flags    = 0;
     uct_worker_progress_init(&self->prog);
-    uct_base_iface_init_rx_buffers_agent(self, params);
+    uct_base_iface_init_rx_buffers_allocator(self, params);
 
     for (id = 0; id < UCT_AM_ID_MAX; ++id) {
         uct_iface_set_stub_am_handler(self, id);

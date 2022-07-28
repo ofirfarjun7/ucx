@@ -1815,7 +1815,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_ats_handler,
     }
 
     UCP_SEND_REQUEST_GET_BY_ID(&sreq, worker, rep_hdr->req_id, 1, return UCS_OK,
-                               "RNDV ATS %p", &rep_hdr);
+                               "RNDV ATS %p", rep_hdr);
 
     /* dereg the original send request and set it to complete */
     UCS_PROFILE_REQUEST_EVENT(sreq, "rndv_ats_recv", 0);
@@ -2325,10 +2325,8 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_rtr_handler,
     ep_config = ucp_ep_config(ep);
     put_zcopy = &ep_config->rndv.put_zcopy;
 
-    ucp_trace_req(sreq,
-                  "received rtr address 0x%" PRIx64 " remote rreq_id"
-                  "0x%" PRIx64,
-                  rndv_rtr_hdr->address, rndv_rtr_hdr->rreq_id);
+    ucp_trace_req(sreq, "received rtr address 0x%"PRIx64" remote rreq_id"
+                  "0x%"PRIx64, rndv_rtr_hdr->address, rndv_rtr_hdr->rreq_id);
     UCS_PROFILE_REQUEST_EVENT(sreq, "rndv_rtr_recv", 0);
 
     if (sreq->flags & UCP_REQUEST_FLAG_OFFLOADED) {
@@ -2341,11 +2339,10 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_rtr_handler,
     if (UCP_DT_IS_CONTIG(sreq->send.datatype) && rndv_rtr_hdr->address) {
         is_put_supported = ucp_rndv_test_zcopy_scheme_support(sreq->send.length,
                                                               put_zcopy);
-        is_put_pipeline  = ((!UCP_MEM_IS_HOST(sreq->send.mem_type) ||
-                             (sreq->send.length != rndv_rtr_hdr->size)) &&
-                            (context->config.ext.rndv_mode !=
-                             UCP_RNDV_MODE_PUT_ZCOPY)) &&
-                           is_put_supported;
+        is_put_pipeline = ((!UCP_MEM_IS_HOST(sreq->send.mem_type) ||
+                            (sreq->send.length != rndv_rtr_hdr->size)) &&
+                           (context->config.ext.rndv_mode != UCP_RNDV_MODE_PUT_ZCOPY)) &&
+                          is_put_supported;
 
         /*
          * Try pipeline protocol for non-host memory, if PUT_ZCOPY protocol is
@@ -2444,7 +2441,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_data_handler,
     }
 
     UCP_SEND_REQUEST_GET_BY_ID(&rndv_req, worker, rndv_data_hdr->req_id, 0,
-                               return UCS_OK, "RNDV data %p", (rndv_data_hdr));
+                               return UCS_OK, "RNDV data %p", rndv_data_hdr);
 
     rreq = ucp_request_get_super(rndv_req);
     ucs_assert(rreq != NULL);

@@ -15,7 +15,6 @@
 #include <uct/api/tl.h>
 #include <uct/api/version.h>
 #include <ucs/async/async_fwd.h>
-#include <ucs/datastruct/ucs_buffers_agent.h>
 #include <ucs/datastruct/callbackq.h>
 #include <ucs/datastruct/linear_func.h>
 #include <ucs/memory/memory_type.h>
@@ -677,8 +676,8 @@ enum uct_iface_params_field {
     /** Enables @ref uct_iface_params_t::features */
     UCT_IFACE_PARAM_FIELD_FEATURES           = UCS_BIT(18),
 
-    /** Enables @ref uct_iface_params_t::rx_buffers_agent */
-    UCT_IFACE_PARAM_FIELD_RX_BUFFERS_AGENT   = UCS_BIT(19)
+    /** Enables User allocator parameters */
+    UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR     = UCS_BIT(19)
 };
 
 /**
@@ -1177,14 +1176,17 @@ struct uct_iface_params {
      */
     uint64_t                                     features;
 
-    /* RX Buffers Agent get */
-    ucs_buffers_agent_get_buf_cb_t               rx_buffers_agent_get;
+    /* User allocator get cb */
+    uct_user_allocator_get_buf_cb_t              get_buff_cb;
     
-    /* RX Buffers Agent payload length */
-    size_t                                       rx_buffers_agent_payload_length;
+    /* User allocator payload length */
+    size_t                                       user_allocator_payload_length;
+    
+    /* User allocator arg */
+    void                                         *user_allocator_arg;
 
-    /* RX Buffers Agent Arg */
-    void                                         *rx_buffers_agent_arg;
+    /* proto_header_length */
+    size_t                                       proto_header_length;
 };
 
 

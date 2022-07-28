@@ -262,6 +262,7 @@ typedef struct uct_iface_recv_desc {
 
 void uct_iface_recv_desc_init(uct_iface_h tl_iface, void *obj, uct_mem_h memh);
 
+
 /**
  * Base structure of all interfaces.
  * Includes the AM table which we don't want to expose.
@@ -288,14 +289,13 @@ typedef struct uct_base_iface {
         size_t               max_num_eps;
     } config;
 
-    /* RX Buffers Agent Ops */
-    ucs_buffers_agent_ops_t *rx_buffers_agent_ops;
+    uct_user_allocator_get_buf_cb_t get_buf_cb;
 
-    /* RX Buffers Agent Arg */
-    void                    *rx_buffers_agent_arg;
+    void                    *user_allocator_arg;
     
-    /* RX Buffers Agent Arg */
-    size_t                   rx_buffers_agent_payload_length;
+    size_t                   user_allocator_payload_length;
+    
+    size_t                   proto_header_length;
 
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
 } uct_base_iface_t;
@@ -592,13 +592,13 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
     { \
         uct_base_iface_t *_base_iface = _iface; \
         uct_ib_iface_recv_desc_t *_desc; \
-        ucs_buffers_agent_buffer_t* _agent_buf_p = (ucs_buffers_agent_buffer_t*)_agent_buf; \
+        uct_user_allocator_buffs_t* _agent_buf_p = (uct_user_allocator_buffs_t*)_agent_buf; \
         ucs_status_t _status_buff; \
         uint32_t _payload_lkey; \
         int _buf_idx; \
         \
-        _status_buff = _base_iface->rx_buffers_agent_ops->get_buf( \
-        _base_iface->rx_buffers_agent_arg, _agent_buf_p); \
+        _status_buff = _base_iface->get_buf_cb( \
+        _base_iface->user_allocator_arg, _agent_buf_p); \
         if (ucs_unlikely(_status_buff != UCS_OK)) { \
             uct_iface_mpool_empty_warn(_iface, \
                                        &_mp[UCT_IB_RX_SG_PAYLOAD_IDX]); \

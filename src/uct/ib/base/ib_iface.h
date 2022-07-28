@@ -51,6 +51,7 @@ enum {
 };
 
 
+#define UCT_IB_IFACE_TERMINATE_SCATTER_LIST_MKEY 0x100
 /**
  * IB RX segments scatter gather list entries.
  */
@@ -372,14 +373,8 @@ extern ucs_config_field_t uct_ib_iface_config_table[];
 extern const char *uct_ib_mtu_values[];
 
 
-/**
- * Create memory pool of receive sg descs.
- */
-ucs_status_t
-uct_ib_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
-                                 const uct_ib_iface_config_t *config,
-                                 const uct_iface_params_t *params,
-                                 const char *name, ucs_mpool_t *mp);
+void uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj, uct_mem_h memh);
+
 
 /**
  * Create memory pool of receive descriptors.
@@ -537,14 +532,6 @@ static inline void* uct_ib_iface_recv_desc_hdr(uct_ib_iface_t *iface,
     return (void*)((char *)desc + iface->config.rx_hdr_offset);
 }
 
-static inline void *
-uct_ib_iface_recv_desc_payload(uct_ib_iface_t *iface,
-                               uct_ib_iface_recv_desc_t *desc)
-{
-    return UCS_PTR_BYTE_OFFSET(desc, iface->config.rx_payload_offset +
-                                             sizeof(uct_ib_iface_recv_desc_t));
-}
-
 typedef struct uct_ib_recv_wr {
     struct ibv_recv_wr ibwr;
     struct ibv_sge     sg[UCT_IB_RECV_SG_LIST_LEN];
@@ -558,8 +545,6 @@ typedef struct uct_ib_recv_wr {
  */
 int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
                                 uct_ib_recv_wr_t *wrs, unsigned n);
-int uct_ib_iface_prepare_rx_wrs_rc(uct_ib_iface_t *iface, ucs_mpool_t *mp,
-                                   uct_ib_recv_wr_t *wrs, unsigned n);
 
 ucs_status_t uct_ib_iface_create_ah(uct_ib_iface_t *iface,
                                     struct ibv_ah_attr *ah_attr,

@@ -481,7 +481,7 @@ typedef struct uct_ib_mlx5_txwq {
 
 /* Receive wqe */
 typedef struct uct_ib_mlx5_rx_wqe {
-    struct mlx5_wqe_data_seg sg_list[UCT_IB_RECV_SG_LIST_LEN];
+    struct mlx5_wqe_data_seg sg_list[0];
 } uct_ib_mlx5_rx_wqe_t;
 
 

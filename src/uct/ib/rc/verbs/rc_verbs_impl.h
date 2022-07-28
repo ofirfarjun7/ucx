@@ -71,7 +71,6 @@ uct_rc_verbs_iface_handle_am(uct_rc_iface_t *iface, uct_rc_hdr_t *hdr,
 
     if (ucs_likely(status != UCS_INPROGRESS)) {
         ucs_mpool_put_inline(desc);
-        // ucs_mpool_put_inline(data_desc);
     } else {
         udesc = (char*)desc + iface->super.config.rx_headroom_offset;
         uct_recv_desc(udesc) = &iface->super.release_desc;
