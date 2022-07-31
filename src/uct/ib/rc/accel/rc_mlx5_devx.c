@@ -206,7 +206,7 @@ uct_rc_mlx5_devx_init_rx_common(uct_rc_mlx5_iface_common_t *iface,
     } else {
         sge_sizes[UCT_IB_RX_SG_TL_HEADER_IDX] = hdr_len;
         sge_sizes[UCT_IB_RX_SG_PAYLOAD_IDX] =
-                iface->super.super.super.user_allocator_payload_length;
+                iface->super.super.super.rx_allocator.size;
         uct_ib_mlx5_srq_buff_init_sg(&iface->rx.srq, 0, max - 1, sge_sizes,
                                      iface->tm.mp.num_strides);
     }

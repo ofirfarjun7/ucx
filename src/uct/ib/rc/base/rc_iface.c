@@ -594,7 +594,7 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
                                   uct_ib_iface_recv_desc_init, name);
 
     status = uct_iface_param_am_alignment(
-            params, iface->super.user_allocator_payload_length, 0,
+            params, iface->super.rx_allocator.size, 0,
             sizeof(uct_ib_iface_recv_desc_t), &alignment, &align_offset);
     if (status != UCS_OK) {
         return status;
@@ -603,7 +603,7 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
     if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR) == 0) {
         status = uct_iface_mpool_init(&iface->super,
                                       &mp[UCT_IB_RX_SG_PAYLOAD_IDX],
-                                      iface->super.user_allocator_payload_length,
+                                      iface->super.rx_allocator.size,
                                       align_offset, alignment, &config->rx.mp,
                                       grow, uct_iface_recv_desc_init, name);
 
@@ -611,7 +611,7 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
             return status;
         }
 
-        iface->super.user_allocator_arg = &mp[UCT_IB_RX_SG_PAYLOAD_IDX];
+        iface->super.rx_allocator.arg = &mp[UCT_IB_RX_SG_PAYLOAD_IDX];
     }
 
     return status;

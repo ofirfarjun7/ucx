@@ -289,10 +289,7 @@ typedef struct uct_base_iface {
         size_t               max_num_eps;
     } config;
 
-    uct_user_allocator_get_buf_cb_t get_buf_cb;
-    void                    *user_allocator_arg;
-    size_t                   user_allocator_payload_length;
-    size_t                   proto_header_length;
+    uct_rx_allocator_t       rx_allocator;
 
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
 } uct_base_iface_t;
@@ -595,8 +592,8 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
         uint32_t _payload_lkey; \
         int _buf_idx; \
         \
-        _status_buff = _base_iface->get_buf_cb( \
-                _base_iface->user_allocator_arg, _agent_buf_p); \
+        _status_buff = _base_iface->rx_allocator.cb( \
+                _base_iface->rx_allocator.arg, _agent_buf_p); \
         if (ucs_unlikely(_status_buff != UCS_OK)) { \
             uct_iface_mpool_empty_warn(_iface, \
                                        &_mp[UCT_IB_RX_SG_PAYLOAD_IDX]); \

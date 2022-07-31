@@ -1154,12 +1154,12 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
     worker->num_ifaces = num_ifaces;
     iface_id           = 0;
 
-    iface_params.user_allocator_payload_length = 0;
-    iface_params.get_buff_cb                   = NULL;
-    iface_params.proto_header_length           = sizeof(ucp_am_hdr_t);
+    iface_params.rx_allocator.size                = 0;
+    iface_params.rx_allocator.cb                  = NULL;
+    iface_params.rx_allocator.proto_header_length = sizeof(ucp_am_hdr_t);
     if (worker->user_mem_allocator.obj) {
-        iface_params.get_buff_cb = ucp_worker_user_allocator_get_cb;
-        iface_params.user_allocator_payload_length =
+        iface_params.rx_allocator.cb = ucp_worker_user_allocator_get_cb;
+        iface_params.rx_allocator.size =
                 worker->user_mem_allocator.payload_length;
     }
 
@@ -1315,9 +1315,9 @@ ucs_status_t ucp_worker_iface_open(ucp_worker_h worker, ucp_rsc_index_t tl_id,
     wiface->post_count       = 0;
     wiface->flags            = 0;
 
-    iface_params->user_allocator_arg = NULL;
+    iface_params->rx_allocator.arg = NULL;
     if (worker->user_mem_allocator.obj) {
-        iface_params->user_allocator_arg = wiface;
+        iface_params->rx_allocator.arg = wiface;
     }
 
     /* Read interface or md configuration */

@@ -676,7 +676,7 @@ enum uct_iface_params_field {
     /** Enables @ref uct_iface_params_t::features */
     UCT_IFACE_PARAM_FIELD_FEATURES           = UCS_BIT(18),
 
-    /** Enables User allocator parameters */
+    /** Enables @ref uct_iface_params_t::rx_allocator */
     UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR     = UCS_BIT(19)
 };
 
@@ -1064,6 +1064,29 @@ struct uct_iface_attr {
 };
 
 
+/*
+ * @ingroup UCT_RESOURCE
+ * @RX buffers allocator obj
+ *
+ *  This structure holds an memory allocator context and it's used for
+ *  allocating rx buffers when performing post receive.
+ *   
+ */
+struct uct_rx_allocator {
+    /* User allocator get cb */
+    uct_user_allocator_get_buf_cb_t      cb;
+
+    /* User allocator payload length */
+    size_t                               size;
+
+    /* User allocator arg */
+    void                                 *arg;
+
+    /* proto_header_length */
+    size_t                               proto_header_length;
+};
+
+
 /**
  * @ingroup UCT_RESOURCE
  * @brief Parameters used for interface creation.
@@ -1176,17 +1199,8 @@ struct uct_iface_params {
      */
     uint64_t                                     features;
 
-    /* User allocator get cb */
-    uct_user_allocator_get_buf_cb_t              get_buff_cb;
-
-    /* User allocator payload length */
-    size_t                                       user_allocator_payload_length;
-
-    /* User allocator arg */
-    void                                         *user_allocator_arg;
-
-    /* proto_header_length */
-    size_t                                       proto_header_length;
+    /* RX buffers allocator passed by the client to be used in post/recv */
+    uct_rx_allocator_t                           rx_allocator;
 };
 
 

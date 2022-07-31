@@ -512,28 +512,28 @@ static ucs_status_t
 uct_base_iface_init_rx_buffers_allocator(uct_base_iface_t *iface,
                                          const uct_iface_params_t *params)
 {
-    iface->user_allocator_arg  = NULL;
-    iface->get_buf_cb          = uct_base_iface_default_get_buff_cb;
+    iface->rx_allocator.arg = NULL;
+    iface->rx_allocator.cb  = uct_base_iface_default_get_buff_cb;
     //TODO - ask Yossi about default value...
-    iface->proto_header_length = params->proto_header_length ?
-                                         params->proto_header_length :
-                                         8;
+    iface->rx_allocator.proto_header_length = params->rx_allocator.proto_header_length ?
+                                              params->rx_allocator.proto_header_length :
+                                              8;
 
     if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR) != 0) {
-        if (params->get_buff_cb == NULL || params->user_allocator_arg == NULL ||
-            params->user_allocator_payload_length == 0) {
+        if (params->rx_allocator.cb == NULL || params->rx_allocator.arg == NULL ||
+            params->rx_allocator.size == 0) {
             ucs_error("invalid user allocator: user_allocator_arg %p, "
                       "get_buff_cb %p, user_allocator_payload_length %lu\n",
-                      (void*)params->user_allocator_arg,
-                      (void*)params->get_buff_cb,
-                      params->user_allocator_payload_length);
+                      (void*)params->rx_allocator.arg,
+                      (void*)params->rx_allocator.cb,
+                      params->rx_allocator.size);
             return UCS_ERR_INVALID_PARAM;
         }
 
-        iface->user_allocator_payload_length =
-                params->user_allocator_payload_length;
-        iface->get_buf_cb         = params->get_buff_cb;
-        iface->user_allocator_arg = params->user_allocator_arg;
+        iface->rx_allocator.size =
+                params->rx_allocator.size;
+        iface->rx_allocator.cb   = params->rx_allocator.cb;
+        iface->rx_allocator.arg  = params->rx_allocator.arg;
     }
 
     return UCS_OK;
