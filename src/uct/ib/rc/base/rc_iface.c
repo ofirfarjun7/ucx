@@ -593,9 +593,10 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
                                   alignment, &config->rx.mp, grow,
                                   uct_ib_iface_recv_desc_init, name);
 
-    status = uct_iface_param_am_alignment(
-            params, iface->super.rx_allocator.size, 0,
-            sizeof(uct_ib_iface_recv_desc_t), &alignment, &align_offset);
+    status = uct_iface_param_am_alignment(params,
+                                          iface->super.rx_allocator.size, 0,
+                                          sizeof(uct_ib_iface_recv_desc_t),
+                                          &alignment, &align_offset);
     if (status != UCS_OK) {
         return status;
     }

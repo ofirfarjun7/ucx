@@ -1285,9 +1285,9 @@ UCS_CLASS_INIT_FUNC(uct_ib_iface_t, uct_iface_ops_t *tl_ops,
     self->config.rx_hdr_offset      = self->config.rx_payload_offset -
                                       init_attr->rx_hdr_len -
                                       self->super.rx_allocator.proto_header_length;
-    self->config.rx_headroom_offset = self->config.rx_payload_offset -
-                                      rx_headroom -
-                                      self->super.rx_allocator.proto_header_length;
+    self->config.rx_headroom_offset =
+            self->config.rx_payload_offset - rx_headroom -
+            self->super.rx_allocator.proto_header_length;
     self->config.seg_size           = init_attr->seg_size;
     self->config.roce_path_factor   = config->roce_path_factor;
     self->config.tx_max_poll        = config->tx.max_poll;
@@ -1301,10 +1301,10 @@ UCS_CLASS_INIT_FUNC(uct_ib_iface_t, uct_iface_ops_t *tl_ops,
     self->release_desc.cb           = uct_ib_iface_release_desc;
     self->config.qp_type            = init_attr->qp_type;
     uct_ib_iface_set_path_mtu(self, config);
-    self->super.rx_allocator.size =
-            self->super.rx_allocator.size ?
-                    self->super.rx_allocator.size :
-                    (init_attr->seg_size - init_attr->rx_hdr_len);
+    self->super.rx_allocator.size = self->super.rx_allocator.size ?
+                                            self->super.rx_allocator.size :
+                                            (init_attr->seg_size -
+                                             init_attr->rx_hdr_len);
 
     if (ucs_derived_of(worker, uct_priv_worker_t)->thread_mode == UCS_THREAD_MODE_MULTI) {
         ucs_error("IB transports do not support multi-threaded worker");

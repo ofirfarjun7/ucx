@@ -1074,16 +1074,16 @@ struct uct_iface_attr {
  */
 struct uct_rx_allocator {
     /* User allocator get cb */
-    uct_user_allocator_get_buf_cb_t      cb;
+    uct_user_allocator_get_buf_cb_t cb;
 
     /* User allocator payload length */
-    size_t                               size;
+    size_t                          size;
 
     /* User allocator arg */
-    void                                 *arg;
+    void                            *arg;
 
     /* proto_header_length */
-    size_t                               proto_header_length;
+    size_t                          proto_header_length;
 };
 
 
