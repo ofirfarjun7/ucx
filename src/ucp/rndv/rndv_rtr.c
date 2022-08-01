@@ -403,7 +403,7 @@ ucs_status_t ucp_proto_rndv_rtr_handle_atp(void *arg, void *data, void *payload,
     ucp_request_t *req;
     ucp_rndv_ack_hdr_t *atp;
 
-    ucp_am_concat_msg_hdr(data, payload, length, atp, (ucp_rndv_ack_hdr_t*));
+    ucp_am_concat_msg_hdr(data, payload, length, atp);
     UCP_SEND_REQUEST_GET_BY_ID(&req, worker, atp->super.req_id, 0,
                                return UCS_OK, "ATP %p", atp);
 
@@ -433,8 +433,7 @@ ucs_status_t ucp_proto_rndv_handle_data(void *arg, void *data, void *payload,
     ucp_request_t *req;
     ucp_request_data_hdr_t *rndv_data_hdr;
 
-    ucp_am_concat_msg_hdr(data, payload, length, rndv_data_hdr,
-                          (ucp_request_data_hdr_t*));
+    ucp_am_concat_msg_hdr(data, payload, length, rndv_data_hdr);
     UCP_SEND_REQUEST_GET_BY_ID(&req, worker, rndv_data_hdr->req_id, 0,
                                return UCS_OK, "RNDV_DATA %p", rndv_data_hdr);
 

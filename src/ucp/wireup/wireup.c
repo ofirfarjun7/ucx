@@ -805,7 +805,7 @@ static ucs_status_t ucp_wireup_msg_handler(void *arg, void *data, void *payload,
 
     UCS_ASYNC_BLOCK(&worker->async);
 
-    ucp_am_concat_msg_hdr(data, payload, length, msg, (ucp_wireup_msg_t*));
+    ucp_am_concat_msg_hdr(data, payload, length, msg);
     if (msg->dst_ep_id != UCS_PTR_MAP_KEY_INVALID) {
         UCP_WORKER_GET_EP_BY_ID(
                 &ep, worker, msg->dst_ep_id,

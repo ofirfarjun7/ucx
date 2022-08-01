@@ -618,15 +618,13 @@ ucp_am_pack_user_header(void *buffer, ucp_request_t *req)
 }
 
 //TODO - check max size with Yossi
-#define MAX_AM_HDR_LENGTH 512
-#define ucp_am_concat_msg_hdr(_hdr, _payload, _length, _msg_hdr, _type) \
+#define ucp_am_concat_msg_hdr(_hdr, _payload, _length, _msg_hdr) \
 { \
-    char _buff[MAX_AM_HDR_LENGTH]; \
-    ucs_assert(_length < MAX_AM_HDR_LENGTH); \
+    void *_buff = ucs_alloca(_length); \
     memcpy(_buff, _hdr, sizeof(ucp_am_hdr_t)); \
     memcpy(UCS_PTR_BYTE_OFFSET(_buff, sizeof(ucp_am_hdr_t)), \
             _payload, _length - sizeof(ucp_am_hdr_t)); \
-    _msg_hdr = _type(_buff); \
+    _msg_hdr = _buff; \
 }
 
 #endif

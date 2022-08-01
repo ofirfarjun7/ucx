@@ -197,8 +197,7 @@ UCS_PROFILE_FUNC_VOID(ucp_am_data_release, (worker, data),
     ucp_recv_desc_t *rdesc = (ucp_recv_desc_t *)data - 1;
     ucp_rndv_rts_hdr_t *rts;
 
-    ucp_am_concat_msg_hdr(data, rdesc->payload, sizeof(*rts), rts,
-                          (ucp_rndv_rts_hdr_t*));
+    ucp_am_concat_msg_hdr(data, rdesc->payload, sizeof(*rts), rts);
     if (ucs_unlikely(rdesc->flags & UCP_RECV_DESC_FLAG_MALLOC)) {
         ucp_am_release_long_desc(rdesc);
         return;
@@ -1075,8 +1074,7 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_am_recv_data_nbx,
     ucs_status_t status;
     size_t recv_length, rkey_length;
 
-    ucp_am_concat_msg_hdr(data_desc, payload, desc->length, rts,
-                          (ucp_rndv_rts_hdr_t*));
+    ucp_am_concat_msg_hdr(data_desc, payload, desc->length, rts);
     /* Sanity check if the descriptor has been released */
     if (ENABLE_PARAMS_CHECK &&
         ucs_unlikely(desc->flags & UCP_RECV_DESC_FLAG_RELEASED)) {
@@ -1621,7 +1619,7 @@ ucs_status_t ucp_am_rndv_process_rts(void *arg, void *data, void *payload,
     ucs_status_t status, desc_status;
     void *hdr;
 
-    ucp_am_concat_msg_hdr(data, payload, length, rts, (ucp_rndv_rts_hdr_t*));
+    ucp_am_concat_msg_hdr(data, payload, length, rts);
     am    = ucp_am_hdr_from_rts((rts));
     am_id = am->am_id;
     am_cb = &ucs_array_elem(&worker->am.cbs, am_id);

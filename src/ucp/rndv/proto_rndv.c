@@ -766,7 +766,7 @@ ucs_status_t ucp_proto_rndv_handle_rtr(void *arg, void *data, void *payload,
     uint8_t sg_count;
     ucp_rndv_rtr_hdr_t *rtr;
 
-    ucp_am_concat_msg_hdr(data, payload, length, rtr, (ucp_rndv_rtr_hdr_t*));
+    ucp_am_concat_msg_hdr(data, payload, length, rtr);
     UCP_SEND_REQUEST_GET_BY_ID(&req, worker, rtr->sreq_id, 0, return UCS_OK,
                                "RTR %p", rtr);
 
