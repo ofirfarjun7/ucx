@@ -1145,8 +1145,7 @@ UCS_PROFILE_FUNC(ucs_status_ptr_t, ucp_am_recv_data_nbx,
                       ucp_am_hdr_from_rts((rts))->header_length;
         ucp_rndv_receive_start(
                 worker, req, rts,
-                UCS_PTR_BYTE_OFFSET(payload,
-                                    sizeof(*rts) - sizeof(ucp_am_hdr_t)),
+                rts+1,
                 rkey_length);
         ret = req + 1;
         goto out;
