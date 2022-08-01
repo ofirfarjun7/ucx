@@ -710,10 +710,8 @@ ucs_status_t
 uct_rc_mlx5_common_iface_init_rx(uct_rc_mlx5_iface_common_t *iface,
                                  const uct_rc_iface_common_config_t *rc_config)
 {
-    const size_t hdr_len = uct_ib_iface_tl_hdr_length(&iface->super.super);
     uct_ib_mlx5_md_t *md = ucs_derived_of(iface->super.super.super.md, uct_ib_mlx5_md_t);
     ucs_status_t status;
-    size_t sge_sizes[UCT_IB_RECV_SG_LIST_LEN];
     uint32_t head;
     uint32_t tail;
 
@@ -731,17 +729,7 @@ uct_rc_mlx5_common_iface_init_rx(uct_rc_mlx5_iface_common_t *iface,
         goto err_free_srq;
     }
 
-    if (UCT_RC_MLX5_MP_ENABLED(iface)) {
-        uct_ib_mlx5_srq_buff_init(&iface->rx.srq, head, tail,
-                                  iface->super.super.config.seg_size,
-                                  iface->tm.mp.num_strides);
-    } else {
-        sge_sizes[UCT_IB_RX_SG_TL_HEADER_IDX] = hdr_len;
-        sge_sizes[UCT_IB_RX_SG_PAYLOAD_IDX] =
-                iface->super.super.super.rx_allocator.size;
-        uct_ib_mlx5_srq_buff_init_sg(&iface->rx.srq, head, tail, sge_sizes,
-                                     iface->tm.mp.num_strides);
-    }
+    uct_ib_mlx5_srq_buff_init_common(iface, head, tail);
 
     if (status != UCS_OK) {
         goto err_free_srq;
