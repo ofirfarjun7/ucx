@@ -1568,8 +1568,6 @@ out:
     max_batch = iface->super.super.config.rx_max_batch;
     if (ucs_unlikely(iface->super.rx.srq.available >= max_batch)) {
         if (poll_flags & UCT_RC_MLX5_POLL_FLAG_LINKED_LIST) {
-            if (UCT_RC_MLX5_MP_ENABLED(iface)) {
-            }
             uct_rc_mlx5_iface_srq_common_post_recv_ll(iface);
         } else {
             uct_rc_mlx5_iface_srq_common_post_recv(iface);
