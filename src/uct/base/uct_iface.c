@@ -489,52 +489,61 @@ UCS_CLASS_CLEANUP_FUNC(uct_iface_t)
 
 UCS_CLASS_DEFINE(uct_iface_t, void);
 
-static ucs_status_t
+static ssize_t
 uct_base_iface_default_get_buff_cb(void *arg, uct_user_allocator_buffs_t *buf)
 {
     ucs_mpool_t *mp = arg;
     uct_iface_recv_desc_t *obj;
-    size_t i;
+    size_t buff_idx;
 
-    for (i = 0; i < buf->num_of_buffers; i++) {
+    for (buff_idx = 0; buff_idx < buf->num_of_buffers; buff_idx++) {
         obj = ucs_mpool_get_inline(mp);
         if (ucs_unlikely(obj == NULL)) {
-            return UCS_ERR_NO_ELEM;
+            return buff_idx;
         }
         buf->memh       = obj->uct_memh;
-        buf->buffers[i] = obj + 1;
+        buf->buffers[buff_idx] = obj + 1;
     }
 
-    return UCS_OK;
+    return buff_idx;
 }
 
 static ucs_status_t
 uct_base_iface_init_rx_buffers_allocator(uct_base_iface_t *iface,
                                          const uct_iface_params_t *params)
 {
-    iface->rx_allocator.arg = NULL;
-    iface->rx_allocator.cb  = uct_base_iface_default_get_buff_cb;
-    //TODO - ask Yossi about default value...
-    iface->rx_allocator.proto_header_length =
-            params->rx_allocator.proto_header_length ?
-                    params->rx_allocator.proto_header_length :
-                    8;
+    iface->rx_allocator.allocator.arg = NULL;
+    iface->rx_allocator.allocator.cb  = uct_base_iface_default_get_buff_cb;
+    iface->rx_allocator.header_length = 0;
+    iface->rx_allocator.size          = 8192;
+
+    if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_HEADER_LEN) != 0) {
+        iface->rx_allocator.header_length = params->rx_header_len;
+    }
+    
+    if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_PAYLOAD_LEN) != 0) {
+        if (params->rx_payload_len == 0) {
+            ucs_error("invalid rx_payload_len %lu\n",
+                      params->rx_payload_len);
+            return UCS_ERR_INVALID_PARAM;
+        }
+
+        iface->rx_allocator.size = params->rx_payload_len;
+    }
 
     if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR) != 0) {
         if (params->rx_allocator.cb == NULL ||
-            params->rx_allocator.arg == NULL ||
-            params->rx_allocator.size == 0) {
+            params->rx_allocator.arg == NULL) {
             ucs_error("invalid user allocator: user_allocator_arg %p, "
                       "get_buff_cb %p, user_allocator_payload_length %lu\n",
                       (void*)params->rx_allocator.arg,
                       (void*)params->rx_allocator.cb,
-                      params->rx_allocator.size);
+                      params->rx_payload_len);
             return UCS_ERR_INVALID_PARAM;
         }
 
-        iface->rx_allocator.size = params->rx_allocator.size;
-        iface->rx_allocator.cb   = params->rx_allocator.cb;
-        iface->rx_allocator.arg  = params->rx_allocator.arg;
+        iface->rx_allocator.allocator.cb  = params->rx_allocator.cb;
+        iface->rx_allocator.allocator.arg = params->rx_allocator.arg;
     }
 
     return UCS_OK;

@@ -105,7 +105,7 @@ uct_rc_mlx5_iface_srq_set_seg(uct_rc_mlx5_iface_common_t *iface,
                                                         desc);
         seg->srq.ptr_mask |= UCS_BIT(i);
         seg->srq.desc      = desc; /* Optimization for non-MP case (1 stride) */
-        seg->dptr[i].lkey  = htonl(desc->lkey);
+        seg->dptr[i].lkey  = htonl(desc->header_lkey);
         seg->dptr[i].addr  = htobe64((uintptr_t)hdr);
         VALGRIND_MAKE_MEM_NOACCESS(hdr, iface->super.super.config.seg_size);
     }
@@ -126,7 +126,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
     payload       = desc->payload;
     /* Set receive data segment pointer. Length is pre-initialized. */
     seg->srq.desc = desc; /* Optimization for non-MP case (1 stride) */
-    seg->dptr[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(desc->lkey);
+    seg->dptr[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(desc->header_lkey);
     seg->dptr[UCT_IB_RX_SG_TL_HEADER_IDX].addr = htobe64((uintptr_t)hdr);
     seg->dptr[UCT_IB_RX_SG_PAYLOAD_IDX].lkey   = htonl(desc->payload_lkey);
     seg->dptr[UCT_IB_RX_SG_PAYLOAD_IDX].addr   = htobe64((uintptr_t)payload);

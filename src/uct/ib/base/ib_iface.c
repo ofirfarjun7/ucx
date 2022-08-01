@@ -227,7 +227,7 @@ void uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj,
 {
     uct_ib_iface_recv_desc_t *desc = obj;
 
-    desc->lkey = uct_ib_memh_get_lkey(memh);
+    desc->header_lkey = uct_ib_memh_get_lkey(memh);
     desc->payload_lkey = 0;
     desc->payload      = NULL;
 }
@@ -1281,13 +1281,13 @@ UCS_CLASS_INIT_FUNC(uct_ib_iface_t, uct_iface_ops_t *tl_ops,
                                               rx_headroom,
                                               init_attr->rx_priv_len +
                                               init_attr->rx_hdr_len +
-                                              self->super.rx_allocator.proto_header_length);
+                                              self->super.rx_allocator.header_length);
     self->config.rx_hdr_offset      = self->config.rx_payload_offset -
                                       init_attr->rx_hdr_len -
-                                      self->super.rx_allocator.proto_header_length;
+                                      self->super.rx_allocator.header_length;
     self->config.rx_headroom_offset =
             self->config.rx_payload_offset - rx_headroom -
-            self->super.rx_allocator.proto_header_length;
+            self->super.rx_allocator.header_length;
     self->config.seg_size           = init_attr->seg_size;
     self->config.roce_path_factor   = config->roce_path_factor;
     self->config.tx_max_poll        = config->tx.max_poll;
@@ -1437,7 +1437,7 @@ int uct_ib_iface_prepare_rx_wrs(uct_ib_iface_t *iface, ucs_mpool_t *mp,
                 uct_ib_iface_recv_desc_hdr(iface, desc);
         wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length =
                 iface->config.seg_size;
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = desc->lkey;
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = desc->header_lkey;
         wrs[count].ibwr.num_sge = 1;
         wrs[count].ibwr.wr_id   = (uintptr_t)desc;
         wrs[count].ibwr.sg_list                        = wrs[count].sg;

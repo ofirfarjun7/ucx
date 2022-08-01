@@ -434,7 +434,7 @@ uct_rc_verbs_iface_prepare_rx_wrs_rc(uct_ib_iface_t *iface, ucs_mpool_t *mp,
                 uct_ib_iface_recv_desc_hdr(iface, desc);
         wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].length =
                 uct_ib_iface_tl_hdr_length(iface);
-        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = desc->lkey;
+        wrs[count].sg[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = desc->header_lkey;
         wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].addr = (uintptr_t)desc->payload;
         wrs[count].sg[UCT_IB_RX_SG_PAYLOAD_IDX].length =
                 iface->super.rx_allocator.size;

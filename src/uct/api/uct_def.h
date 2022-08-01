@@ -895,7 +895,6 @@ typedef ucs_status_t (*uct_tag_unexp_rndv_cb_t)(void *arg, unsigned flags,
  */
 typedef void (*uct_async_event_cb_t)(void *arg, unsigned flags);
 
-//TODO - maybe add as a field to the iface?
 typedef struct uct_user_allocator_buffs {
     size_t    num_of_buffers;
     uct_mem_h memh;
@@ -911,7 +910,7 @@ typedef struct uct_user_allocator_buffs {
  *
  * @return            Error code as defined by @ref ucs_status_t
  */
-typedef ucs_status_t (*uct_user_allocator_get_buf_cb_t)(
+typedef ssize_t (*uct_user_allocator_get_buf_cb_t)(
         void *arg, uct_user_allocator_buffs_t *buffs);
 
 

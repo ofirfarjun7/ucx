@@ -907,7 +907,7 @@ ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem,
     return UCS_OK;
 }
 
-UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
+UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
                  void *arg, uct_user_allocator_buffs_t *buffs)
 {
     const ucp_worker_iface_t *wiface = (ucp_worker_iface_t*)arg;
@@ -917,32 +917,31 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
     ucs_status_t status;
     unsigned md_index;
     ucp_mem_h ucp_memh;
+    ssize_t ret;
 
     if (ucs_unlikely(buffs == NULL)) {
-        //TODO - alert/log maybe?
         return UCS_ERR_NO_ELEM;
     }
 
-    status = worker->user_mem_allocator.get_buf(worker->user_mem_allocator.obj,
-                                                buffs->num_of_buffers,
-                                                buffs->buffers, &ucp_memh);
+    ret = worker->user_mem_allocator.get_buf(worker->user_mem_allocator.obj,
+                                             buffs->num_of_buffers,
+                                             buffs->buffers, &ucp_memh);
 
-    if (ucs_unlikely(status != UCS_OK)) {
-        //TODO - alert/log maybe?
-        return status;
+    if (ucs_unlikely(ret <= 0)) {
+        return ret;
     }
 
     resource = &context->tl_rscs[wiface->rsc_index];
     md_index = resource->md_index;
-
-    if (ucs_unlikely(ucp_worker_get_uct_memh(
+    status = ucp_worker_get_uct_memh(
                              ucp_memh,
                              worker->user_mem_allocator.uct_memh_idx_mem,
-                             md_index, &buffs->memh) != UCS_OK)) {
-        return UCS_ERR_NO_ELEM;
+                             md_index, &buffs->memh);
+    if (ucs_unlikely(status != UCS_OK)) {
+        return status;
     }
 
-    return UCS_OK;
+    return ret;
 }
 
 /* Check if the transport support at least one keepalive mechanism */
@@ -1154,14 +1153,8 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
     worker->num_ifaces = num_ifaces;
     iface_id           = 0;
 
-    iface_params.rx_allocator.size                = 0;
-    iface_params.rx_allocator.cb                  = NULL;
-    iface_params.rx_allocator.proto_header_length = sizeof(ucp_am_hdr_t);
-    if (worker->user_mem_allocator.obj) {
-        iface_params.rx_allocator.cb = ucp_worker_user_allocator_get_cb;
-        iface_params.rx_allocator.size =
-                worker->user_mem_allocator.payload_length;
-    }
+    iface_params.rx_allocator.cb = NULL;
+    iface_params.rx_header_len   = sizeof(ucp_am_hdr_t);
 
     UCS_BITMAP_FOR_EACH_BIT(tl_bitmap, tl_id) {
         iface_params.field_mask = UCT_IFACE_PARAM_FIELD_OPEN_MODE;
@@ -1176,8 +1169,13 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
             iface_params.mode.device.dev_name = resource->tl_rsc.dev_name;
         }
 
+        iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_HEADER_LEN;
         if (worker->user_mem_allocator.obj) {
-            iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR;
+            iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR |
+                                       UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_PAYLOAD_LEN;
+            iface_params.rx_allocator.cb = ucp_worker_user_allocator_get_cb;
+            iface_params.rx_payload_len =
+                worker->user_mem_allocator.payload_length;
         }
 
         status = ucp_worker_iface_open(worker, tl_id, &iface_params,
@@ -2423,12 +2421,12 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
     }
 
     if (params->field_mask & UCP_WORKER_PARAM_FIELD_USER_ALLOCATOR) {
-        if ((params->allocator_obj == NULL) || (params->allocator_cb == NULL) ||
-            (params->allocator_payload_length == 0)) {
+        if ((params->user_allocator.arg == NULL) || (params->user_allocator.cb == NULL) ||
+            (params->user_allocator.buffer_size == 0)) {
             ucs_error("invalid user allocator: allocator_obj %p, allocator_cb "
                       "%p, payload_length %lu\n",
-                      (void*)params->allocator_obj, (void*)params->allocator_cb,
-                      params->allocator_payload_length);
+                      (void*)params->user_allocator.arg, (void*)params->user_allocator.cb,
+                      params->user_allocator.buffer_size);
             status = UCS_ERR_INVALID_PARAM;
             goto err_free;
         }
@@ -2436,9 +2434,9 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
         memset(worker->user_mem_allocator.uct_memh_idx_mem, 0,
                sizeof(worker->user_mem_allocator.uct_memh_idx_mem));
         worker->user_mem_allocator.payload_length =
-                params->allocator_payload_length;
-        worker->user_mem_allocator.get_buf = params->allocator_cb;
-        worker->user_mem_allocator.obj     = params->allocator_obj;
+                params->user_allocator.buffer_size;
+        worker->user_mem_allocator.get_buf = params->user_allocator.cb;
+        worker->user_mem_allocator.obj     = params->user_allocator.arg;
     }
 
     /* Create statistics */

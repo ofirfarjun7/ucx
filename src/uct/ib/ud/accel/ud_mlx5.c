@@ -189,7 +189,7 @@ uct_ud_mlx5_iface_post_recv(uct_ud_mlx5_iface_t *iface)
         desc->payload = UCS_PTR_BYTE_OFFSET(
                 desc, iface->super.super.config.rx_payload_offset);
         rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(
-                desc->lkey);
+                desc->header_lkey);
         rx_wqes[pi].sg_list[UCT_IB_RX_SG_TL_HEADER_IDX].addr = htobe64(
                 (uintptr_t)uct_ib_iface_recv_desc_hdr(&iface->super.super,
                                                       desc));

@@ -1230,9 +1230,9 @@ typedef struct ucp_worker_attr {
  * @param [out] buffers        Array to fill with returned buffers.
  * @param [out] memh           Buffer's UCP memory handle.
  * 
- * @return Error code as defined by @ref ucs_status_t
+ * @return number of allocated buffers or Error code as defined by @ref ucs_status_t
  */
-typedef ucs_status_t (*ucp_mem_allocator_cb_t)(void *allocator_obj,
+typedef ssize_t (*ucp_mem_allocator_cb_t)(void *allocator_obj,
                                                size_t num_of_buffers,
                                                void **buffers, ucp_mem_h *memh);
 
@@ -1343,19 +1343,22 @@ typedef struct ucp_worker_params {
     uint64_t               client_id;
 
     /**
-    * User memory allocator to be used for allocating payload rx buffers.
-    */
-    void                   *allocator_obj;
-
-    /**
-    * User memory allocator payload's buffer size.
-    */
-    size_t                 allocator_payload_length;
-
-    /**
-    * User memory allocator get buf function used by UCX in post receive. 
-    */
-    ucp_mem_allocator_cb_t allocator_cb;
+     * User defined memory allocator 
+     */
+    struct {
+        /**
+         * User memory allocator get buf function used by UCX in post receive. 
+         */
+        ucp_mem_allocator_cb_t cb;
+        /**
+         * argument to pass to memory allocator cb.
+         */
+        void                   *arg;
+        /**
+         * User memory allocator payload's buffer size.
+         */
+        size_t                 buffer_size;
+    } user_allocator;
 } ucp_worker_params_t;
 
 

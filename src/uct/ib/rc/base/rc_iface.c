@@ -612,7 +612,7 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
             return status;
         }
 
-        iface->super.rx_allocator.arg = &mp[UCT_IB_RX_SG_PAYLOAD_IDX];
+        iface->super.rx_allocator.allocator.arg = &mp[UCT_IB_RX_SG_PAYLOAD_IDX];
     }
 
     return status;

@@ -289,7 +289,11 @@ typedef struct uct_base_iface {
         size_t               max_num_eps;
     } config;
 
-    uct_rx_allocator_t       rx_allocator;
+    struct {
+        size_t                   header_length;
+        size_t                   size;
+        uct_rx_allocator_t       allocator;
+    } rx_allocator;
 
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
 } uct_base_iface_t;
@@ -588,20 +592,18 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
         uct_ib_iface_recv_desc_t *_desc; \
         uct_user_allocator_buffs_t *_agent_buf_p = \
                 (uct_user_allocator_buffs_t*)_agent_buf; \
-        ucs_status_t _status_buff; \
+        ssize_t _num_of_allocated_buffs; \
         uint32_t _payload_lkey; \
         int _buf_idx; \
         \
-        _status_buff = _base_iface->rx_allocator.cb( \
-                _base_iface->rx_allocator.arg, _agent_buf_p); \
-        if (ucs_unlikely(_status_buff != UCS_OK)) { \
-            uct_iface_mpool_empty_warn(_iface, \
-                                       &_mp[UCT_IB_RX_SG_PAYLOAD_IDX]); \
+        _num_of_allocated_buffs = _base_iface->rx_allocator.allocator.cb( \
+                _base_iface->rx_allocator.allocator.arg, _agent_buf_p); \
+        if (ucs_unlikely(_num_of_allocated_buffs <= 0)) { \
             _failure; \
         } \
         \
         _payload_lkey = uct_ib_memh_get_lkey(_agent_buf_p->memh); \
-        for (_buf_idx = 0; _buf_idx < _agent_buf_p->num_of_buffers; \
+        for (_buf_idx = 0; _buf_idx < _num_of_allocated_buffs; \
              _buf_idx++) { \
             _desc = ucs_mpool_get_inline((&_mp[UCT_IB_RX_SG_TL_HEADER_IDX])); \
             if (ucs_unlikely((_desc) == NULL)) { \
