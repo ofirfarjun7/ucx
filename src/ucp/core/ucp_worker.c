@@ -873,26 +873,18 @@ static uint64_t ucp_worker_get_exclude_caps(ucp_worker_h worker)
     return exclude_caps;
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t
-ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem,
-                        unsigned md_index, uct_mem_h *uct_memh)
+static UCS_F_ALWAYS_INLINE uct_mem_h
+ucp_worker_get_uct_memh(ucp_worker_h worker, ucp_mem_h ucp_memh, unsigned md_index)
 {
-    unsigned uct_memh_idx = 0;
-    unsigned md_bit_idx   = 0;
-    ucp_md_map_t md_map_p;
+    unsigned uct_memh_idx      = 0;
+    unsigned md_bit_idx        = 0;
+    uint8_t *uct_memh_idx_mem  = worker->user_mem_allocator.uct_memh_idx_mem;
+    ucp_md_map_t md_map_p      = ucp_memh->md_map;
 
-    if (ucs_unlikely(md_index >= UCP_MD_INDEX_BITS)) {
-        return UCS_ERR_NO_DEVICE;
-    }
+    assert(md_index < UCP_MD_INDEX_BITS);
+    assert((md_map_p & UCS_BIT(md_index)) != 0);
 
-    md_map_p = ucp_memh->md_map;
-    if (ucs_unlikely((md_map_p & UCS_BIT(md_index)) == 0)) {
-        //TODO - change error message?
-        return UCS_ERR_NO_RESOURCE;
-    }
-
-    //TODO - maybe remove uct_memh_idx_mem, it can cause cache miss?
-    if (ucs_unlikely(uct_memh_idx_mem[md_index] == 0)) {
+    if (ucs_unlikely(uct_memh_idx_mem[md_index] == UCP_NULL_RESOURCE)) {
         ucs_for_each_bit(md_bit_idx, md_map_p) {
             if (md_bit_idx == md_index) {
                 break;
@@ -900,11 +892,10 @@ ucp_worker_get_uct_memh(ucp_mem_h ucp_memh, unsigned *uct_memh_idx_mem,
             ++uct_memh_idx;
         }
 
-        uct_memh_idx_mem[md_index] = uct_memh_idx + 1;
+        uct_memh_idx_mem[md_index] = uct_memh_idx;
     }
 
-    *uct_memh = ucp_memh->uct[uct_memh_idx_mem[md_index] - 1];
-    return UCS_OK;
+    return ucp_memh->uct[uct_memh_idx_mem[md_index]];
 }
 
 UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
@@ -914,14 +905,11 @@ UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
     const ucp_worker_h worker        = wiface->worker;
     const ucp_context_h context      = worker->context;
     ucp_tl_resource_desc_t *resource;
-    ucs_status_t status;
     unsigned md_index;
     ucp_mem_h ucp_memh;
     ssize_t ret;
 
-    if (ucs_unlikely(buffs == NULL)) {
-        return UCS_ERR_NO_ELEM;
-    }
+    assert(buffs != NULL);
 
     ret = worker->user_mem_allocator.get_buf(worker->user_mem_allocator.obj,
                                              buffs->num_of_buffers,
@@ -933,13 +921,7 @@ UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
 
     resource = &context->tl_rscs[wiface->rsc_index];
     md_index = resource->md_index;
-    status = ucp_worker_get_uct_memh(
-                             ucp_memh,
-                             worker->user_mem_allocator.uct_memh_idx_mem,
-                             md_index, &buffs->memh);
-    if (ucs_unlikely(status != UCS_OK)) {
-        return status;
-    }
+    buffs->memh = ucp_worker_get_uct_memh(worker, ucp_memh, md_index);
 
     return ret;
 }
@@ -2431,7 +2413,7 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
             goto err_free;
         }
 
-        memset(worker->user_mem_allocator.uct_memh_idx_mem, 0,
+        memset(worker->user_mem_allocator.uct_memh_idx_mem, UCP_NULL_RESOURCE,
                sizeof(worker->user_mem_allocator.uct_memh_idx_mem));
         worker->user_mem_allocator.payload_length =
                 params->user_allocator.buffer_size;

@@ -476,12 +476,12 @@ struct ucp_recv_desc {
                                                     for assembling the message */
         ucs_queue_elem_t    am_mid_queue;        /* AM middle fragments queue */
     };
-    uint32_t                length;              /* Received length */
     union {
         uint32_t payload_offset; /* Offset from end of the
                                     descriptor to AM data */
         void     *payload;       /* pointer to payload */
     };
+    uint32_t                length;              /* Received length */
     uint16_t                flags;               /* Flags */
     int16_t                 release_desc_offset; /* Offset which needs to be
                                                     substructed from rdesc when

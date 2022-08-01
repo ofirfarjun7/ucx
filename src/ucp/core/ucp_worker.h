@@ -257,7 +257,7 @@ typedef struct ucp_worker_user_mem_allocator {
     void                   *obj;
     size_t                 payload_length;
     ucp_mem_allocator_cb_t get_buf;
-    unsigned               uct_memh_idx_mem[UCP_MD_INDEX_BITS];
+    uint8_t                uct_memh_idx_mem[UCP_MD_INDEX_BITS];
 } ucp_worker_user_mem_allocator_t;
 
 /**
