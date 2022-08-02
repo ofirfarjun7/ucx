@@ -113,15 +113,13 @@ uct_rc_mlx5_iface_srq_set_seg(uct_rc_mlx5_iface_common_t *iface,
     return UCS_OK;
 }
 
-static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
+static UCS_F_ALWAYS_INLINE void uct_rc_mlx5_iface_srq_set_seg_sge(
         uct_rc_mlx5_iface_common_t *iface, uct_ib_mlx5_srq_seg_t *seg,
-        uint16_t buff_idx, uct_user_allocator_buffs_t *buffs)
+        uct_ib_iface_recv_desc_t *desc)
 {
-    uct_ib_iface_recv_desc_t *desc;
     void *hdr;
     void *payload;
 
-    desc          = buffs->buffers[buff_idx];
     hdr           = uct_ib_iface_recv_desc_hdr(&iface->super.super, desc);
     payload       = desc->payload;
     /* Set receive data segment pointer. Length is pre-initialized. */
@@ -134,8 +132,6 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
             hdr, seg->dptr[UCT_IB_RX_SG_TL_HEADER_IDX].byte_count);
     VALGRIND_MAKE_MEM_NOACCESS(payload,
                                seg->dptr[UCT_IB_RX_SG_PAYLOAD_IDX].byte_count);
-
-    return UCS_OK;
 }
 
 /* Update resources and write doorbell record */
@@ -213,61 +209,100 @@ unsigned uct_rc_mlx5_iface_srq_post_recv(uct_rc_mlx5_iface_common_t *iface)
 
 unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
 {
-    uct_ib_mlx5_srq_t *srq   = &iface->rx.srq;
-    uct_rc_iface_t *rc_iface = &iface->super;
+    uct_base_iface_t *base_iface = &iface->super.super.super;
+    uct_ib_mlx5_srq_t *srq       = &iface->rx.srq;
+    uct_rc_iface_t *rc_iface     = &iface->super;
+    uint16_t available           = 0;
     uct_ib_mlx5_srq_seg_t *seg;
-    uint16_t count, wqe_index, next_index;
-    ucs_status_t status;
+    uint16_t count, wqe_index, next_index, buff_idx, batch_idx;
     uct_user_allocator_buffs_t rx_buffers;
-    uint32_t buff_idx;
+    uint32_t payload_lkey;
+    ssize_t num_of_alloc;
+    uct_ib_iface_recv_desc_t *desc;
 
     /* Make sure the union is right */
     uct_rc_mlx5_iface_srq_post_recv_check_union(iface);
 
-    wqe_index = srq->ready_idx;
-    buff_idx  = 0;
-    //TODO - check with Yossi if we can replace loop with some direct calculation
+    next_index = srq->ready_idx;
+    available  = 0;
     for (;;) {
-        next_index = wqe_index + 1;
+        next_index += 1;
         seg        = uct_ib_mlx5_srq_get_wqe(srq, next_index);
         if (UCS_CIRCULAR_COMPARE16(next_index, >, srq->free_idx)) {
             if (!seg->srq.free) {
                 break;
             }
         }
-        wqe_index = next_index;
-        buff_idx++;
+        available++;
     }
-    rx_buffers.num_of_buffers = buff_idx;
-    UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super.super.super, iface->super.rx.mps,
-                                &rx_buffers, return UCS_ERR_NO_MEMORY);
 
     wqe_index = srq->ready_idx;
-    buff_idx  = 0;
-    for (;;) {
-        next_index = wqe_index + 1;
-        seg        = uct_ib_mlx5_srq_get_wqe(srq, next_index);
-        if (UCS_CIRCULAR_COMPARE16(next_index, >, srq->free_idx)) {
-            if (!seg->srq.free) {
-                break;
+    for (batch_idx = 0; batch_idx < available / UCT_ALLOCATOR_MAX_RX_BUFFS; batch_idx++) {
+        
+        rx_buffers.num_of_buffers = UCT_ALLOCATOR_MAX_RX_BUFFS;
+        num_of_alloc = base_iface->rx_allocator.allocator.cb(base_iface->rx_allocator.allocator.arg, &rx_buffers);
+        if (ucs_unlikely(UCS_STATUS_IS_ERR(num_of_alloc) || num_of_alloc == 0)) {
+            goto out;
+        }
+
+        payload_lkey = uct_ib_memh_get_lkey(rx_buffers.memh);
+        for (buff_idx = 0; buff_idx < num_of_alloc; buff_idx++) {
+
+            next_index = wqe_index + 1;
+            seg        = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+            if (UCS_CIRCULAR_COMPARE16(next_index, >, srq->free_idx)) {
+                if (!seg->srq.free) {
+                    goto out;
+                }
+
+                ucs_assert(next_index == (uint16_t)(srq->free_idx + 1));
+                seg->srq.free = 0;
+                srq->free_idx = next_index;
             }
+            seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+            
+            UCT_TL_IFACE_GET_RX_DESC_SG(base_iface,
+                                        &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
+                                        desc, rx_buffers.buffers[buff_idx], payload_lkey, goto out);
+            uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, desc);
 
-            ucs_assert(next_index == (uint16_t)(srq->free_idx + 1));
-            seg->srq.free = 0;
-            srq->free_idx = next_index;
+            wqe_index = next_index;
         }
-
-        status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, buff_idx,
-                                                   &rx_buffers);
-
-        if (status != UCS_OK) {
-            break;
-        }
-
-        wqe_index = next_index;
-        buff_idx++;
     }
 
+    if ((available % UCT_ALLOCATOR_MAX_RX_BUFFS) != 0) {
+
+        rx_buffers.num_of_buffers = available % UCT_ALLOCATOR_MAX_RX_BUFFS;
+        num_of_alloc = base_iface->rx_allocator.allocator.cb(base_iface->rx_allocator.allocator.arg, &rx_buffers);
+        if (ucs_unlikely(UCS_STATUS_IS_ERR(num_of_alloc) || num_of_alloc == 0)) {
+            goto out;
+        }
+
+        payload_lkey = uct_ib_memh_get_lkey(rx_buffers.memh);
+        for (buff_idx = 0; buff_idx < num_of_alloc; buff_idx++) {
+
+            next_index = wqe_index + 1;
+            seg        = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+            if (UCS_CIRCULAR_COMPARE16(next_index, >, srq->free_idx)) {
+                if (!seg->srq.free) {
+                    goto out;
+                }
+
+                ucs_assert(next_index == (uint16_t)(srq->free_idx + 1));
+                seg->srq.free = 0;
+                srq->free_idx = next_index;
+            }
+            seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+
+            UCT_TL_IFACE_GET_RX_DESC_SG(base_iface,
+                                        &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
+                                        desc, rx_buffers.buffers[buff_idx], payload_lkey, goto out);
+            uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, desc);
+            wqe_index = next_index;
+        }
+    }
+
+out:
     count = wqe_index - srq->sw_pi;
     uct_rc_mlx5_iface_update_srq_res(rc_iface, srq, wqe_index, count);
     ucs_assert(uct_ib_mlx5_srq_get_wqe(srq, srq->mask)->srq.next_wqe_index ==
@@ -313,54 +348,84 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll(uct_rc_mlx5_iface_common_t *iface)
 unsigned
 uct_rc_mlx5_iface_srq_post_recv_ll_sge(uct_rc_mlx5_iface_common_t *iface)
 {
-    uct_ib_mlx5_srq_t *srq     = &iface->rx.srq;
-    uct_rc_iface_t *rc_iface   = &iface->super;
-    uct_ib_mlx5_srq_seg_t *seg = NULL;
-    uint16_t count             = 0;
-    uint16_t wqe_index, next_index;
-    ucs_status_t status;
+    uct_base_iface_t *base_iface = &iface->super.super.super;
+    uct_ib_mlx5_srq_t *srq       = &iface->rx.srq;
+    uct_rc_iface_t *rc_iface     = &iface->super;
+    uct_ib_mlx5_srq_seg_t *seg   = NULL;
+    uint16_t available           = 0;
+    uint16_t count               = 0;
+    uint16_t wqe_index, next_index, buff_idx, batch_idx;
     uct_user_allocator_buffs_t rx_buffers;
+    uct_ib_iface_recv_desc_t *desc;
+    uint32_t payload_lkey;
+    ssize_t num_of_alloc;
 
     ucs_assert(rc_iface->rx.srq.available > 0);
 
-    wqe_index = srq->ready_idx;
-    seg       = uct_ib_mlx5_srq_get_wqe(srq, wqe_index);
-
+    seg = uct_ib_mlx5_srq_get_wqe(srq, srq->ready_idx);
     for (;;) {
         next_index = ntohs(seg->srq.next_wqe_index);
         if (next_index == (srq->free_idx & srq->mask)) {
             break;
         }
         seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
-        wqe_index = next_index;
-        count++;
+        available++;
     }
 
-    rx_buffers.num_of_buffers = count;
-    UCT_TL_IFACE_GET_RX_DESC_SG(&iface->super.super.super, iface->super.rx.mps,
-                                &rx_buffers, return UCS_ERR_NO_MEMORY);
-
+    //TOTO - potential memory leak - mpool and user allocator not sync in respect of available memory...
     wqe_index = srq->ready_idx;
     seg       = uct_ib_mlx5_srq_get_wqe(srq, wqe_index);
-    count     = 0;
-    for (;;) {
-        next_index = ntohs(seg->srq.next_wqe_index);
-        if (next_index == (srq->free_idx & srq->mask)) {
-            break;
-        }
-        seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+    for (batch_idx = 0; batch_idx < available / UCT_ALLOCATOR_MAX_RX_BUFFS; batch_idx++) {
 
-        status = uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, count,
-                                                   &rx_buffers);
-
-        if (status != UCS_OK) {
-            break;
+        rx_buffers.num_of_buffers = UCT_ALLOCATOR_MAX_RX_BUFFS;
+        num_of_alloc = base_iface->rx_allocator.allocator.cb(base_iface->rx_allocator.allocator.arg, &rx_buffers);
+        if (ucs_unlikely(UCS_STATUS_IS_ERR(num_of_alloc) || num_of_alloc == 0)) {
+            goto out;
         }
 
-        wqe_index = next_index;
-        count++;
+        payload_lkey = uct_ib_memh_get_lkey(rx_buffers.memh);
+        for (buff_idx = 0; buff_idx < num_of_alloc; buff_idx++) {
+            next_index = ntohs(seg->srq.next_wqe_index);
+            if (next_index == (srq->free_idx & srq->mask)) {
+                goto out;
+            }
+            seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+
+            UCT_TL_IFACE_GET_RX_DESC_SG(base_iface,
+                                        &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
+                                        desc, rx_buffers.buffers[buff_idx], payload_lkey, goto out);
+            uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, desc);
+            wqe_index = next_index;
+            count++;
+        }
     }
 
+    if ((available % UCT_ALLOCATOR_MAX_RX_BUFFS) != 0) {
+
+        rx_buffers.num_of_buffers = available % UCT_ALLOCATOR_MAX_RX_BUFFS;
+        num_of_alloc = base_iface->rx_allocator.allocator.cb(base_iface->rx_allocator.allocator.arg, &rx_buffers);
+        if (ucs_unlikely(UCS_STATUS_IS_ERR(num_of_alloc) || num_of_alloc == 0)) {
+            goto out;
+        }
+
+        payload_lkey = uct_ib_memh_get_lkey(rx_buffers.memh);
+        for (buff_idx = 0; buff_idx < num_of_alloc; buff_idx++) {
+            next_index = ntohs(seg->srq.next_wqe_index);
+            if (next_index == (srq->free_idx & srq->mask)) {
+                goto out;
+            }
+            seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
+
+            UCT_TL_IFACE_GET_RX_DESC_SG(base_iface,
+                                        &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
+                                        desc, rx_buffers.buffers[buff_idx], payload_lkey, goto out);
+            uct_rc_mlx5_iface_srq_set_seg_sge(iface, seg, desc);
+            wqe_index = next_index;
+            count++;
+        }
+    }
+
+out:
     uct_rc_mlx5_iface_update_srq_res(rc_iface, srq, wqe_index, count);
     return count;
 }

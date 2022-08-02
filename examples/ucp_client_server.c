@@ -902,12 +902,12 @@ mpool_allocator_get(void *allocator_obj, size_t num_of_buffers,
             allocator_obj;
     mpool_allocator_buff_hdr_t *m_buf_hdr;
     void *obj;
-    size_t buff_idx;
+    ssize_t buff_idx;
 
     for (buff_idx = 0; buff_idx < num_of_buffers; buff_idx++) {
         obj = ucs_mpool_get(&allocator->mpool);
         if (obj == NULL) {
-            return UCS_ERR_NO_MEMORY;
+            return buff_idx;
         }
 
         m_buf_hdr = (mpool_allocator_buff_hdr_t*)obj;

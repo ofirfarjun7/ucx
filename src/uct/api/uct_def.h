@@ -885,6 +885,7 @@ typedef ucs_status_t (*uct_tag_unexp_rndv_cb_t)(void *arg, unsigned flags,
                                                 const void *rkey_buf);
 
 
+#define UCT_ALLOCATOR_MAX_RX_BUFFS 64
 /**
  * @ingroup UCT_RESOURCE
  * @brief Callback to process asynchronous events.
@@ -898,7 +899,7 @@ typedef void (*uct_async_event_cb_t)(void *arg, unsigned flags);
 typedef struct uct_user_allocator_buffs {
     size_t    num_of_buffers;
     uct_mem_h memh;
-    void      *buffers[2048];
+    void      *buffers[UCT_ALLOCATOR_MAX_RX_BUFFS];
 } uct_user_allocator_buffs_t;
 
 

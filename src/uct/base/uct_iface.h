@@ -586,36 +586,11 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
     }
 
 
-#define UCT_TL_IFACE_GET_RX_DESC_SG(_iface, _mp, _agent_buf, _failure) \
+#define UCT_TL_IFACE_GET_RX_DESC_SG(_iface, _mp, _desc, _payload, _payload_lkey, _failure) \
     { \
-        uct_base_iface_t *_base_iface = _iface; \
-        uct_ib_iface_recv_desc_t *_desc; \
-        uct_user_allocator_buffs_t *_agent_buf_p = \
-                (uct_user_allocator_buffs_t*)_agent_buf; \
-        ssize_t _num_of_allocated_buffs; \
-        uint32_t _payload_lkey; \
-        int _buf_idx; \
-        \
-        _num_of_allocated_buffs = _base_iface->rx_allocator.allocator.cb( \
-                _base_iface->rx_allocator.allocator.arg, _agent_buf_p); \
-        if (ucs_unlikely(_num_of_allocated_buffs <= 0)) { \
-            _failure; \
-        } \
-        \
-        _payload_lkey = uct_ib_memh_get_lkey(_agent_buf_p->memh); \
-        for (_buf_idx = 0; _buf_idx < _num_of_allocated_buffs; \
-             _buf_idx++) { \
-            _desc = ucs_mpool_get_inline((&_mp[UCT_IB_RX_SG_TL_HEADER_IDX])); \
-            if (ucs_unlikely((_desc) == NULL)) { \
-                uct_iface_mpool_empty_warn(_iface, \
-                                           &_mp[UCT_IB_RX_SG_TL_HEADER_IDX]); \
-                _failure; \
-            } \
-            VALGRIND_MAKE_MEM_DEFINED(_desc, sizeof(*(_desc))); \
-            _desc->payload_lkey             = _payload_lkey; \
-            _desc->payload                  = _agent_buf_p->buffers[_buf_idx]; \
-            _agent_buf_p->buffers[_buf_idx] = _desc; \
-        } \
+        UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure); \
+        _desc->payload_lkey = _payload_lkey; \
+        _desc->payload      = _payload; \
     }
 
 
