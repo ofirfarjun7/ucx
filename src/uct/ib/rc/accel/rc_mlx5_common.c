@@ -232,6 +232,10 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
             if (!seg->srq.free) {
                 break;
             }
+
+            ucs_assert(next_index == (uint16_t)(srq->free_idx + 1));
+            seg->srq.free  = 0;
+            srq->free_idx  = next_index;
         }
         available++;
     }
@@ -259,7 +263,6 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
                 seg->srq.free = 0;
                 srq->free_idx = next_index;
             }
-            seg = uct_ib_mlx5_srq_get_wqe(srq, next_index);
             
             UCT_TL_IFACE_GET_RX_DESC_SG(base_iface,
                                         &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
