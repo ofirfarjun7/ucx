@@ -897,6 +897,7 @@ typedef ucs_status_t (*uct_tag_unexp_rndv_cb_t)(void *arg, unsigned flags,
 typedef void (*uct_async_event_cb_t)(void *arg, unsigned flags);
 
 typedef struct uct_user_allocator_buffs {
+    size_t    ready_idx;
     size_t    num_of_buffers;
     uct_mem_h memh;
     void      *buffers[UCT_ALLOCATOR_MAX_RX_BUFFS];

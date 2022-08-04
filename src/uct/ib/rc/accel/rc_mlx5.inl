@@ -94,7 +94,7 @@ uct_rc_mlx5_iface_hold_srq_desc(uct_rc_mlx5_iface_common_t *iface,
     } else {
         udesc                = UCS_PTR_BYTE_OFFSET(seg->srq.desc, offset);
         uct_recv_desc(udesc) = release_desc;
-        seg->srq.ptr_mask   &= ~1;
+        seg->srq.ptr_mask   &= ~UCS_MASK(UCT_IB_RECV_SG_LIST_LEN);
         seg->srq.desc        = NULL;
     }
 }

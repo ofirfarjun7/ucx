@@ -290,9 +290,10 @@ typedef struct uct_base_iface {
     } config;
 
     struct {
-        size_t                   header_length;
-        size_t                   size;
-        uct_rx_allocator_t       allocator;
+        size_t                     header_length;
+        size_t                     size;
+        uct_user_allocator_buffs_t buffs_pool;
+        uct_rx_allocator_t         allocator;
     } rx_allocator;
 
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */
@@ -591,6 +592,19 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
         UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure); \
         _desc->payload_lkey = _payload_lkey; \
         _desc->payload      = _payload; \
+    }
+
+#define UCT_TL_IFACE_GET_RX_DATA_BUFFERS(_iface, _failure) \
+     { \
+        uct_base_iface_t *_base_iface = _iface; \
+        ssize_t _num_of_alloc         = _base_iface->rx_allocator.buffs_pool.num_of_buffers; \
+        \
+        _num_of_alloc = _base_iface->rx_allocator.allocator.cb( \
+                _base_iface->rx_allocator.allocator.arg, &_base_iface->rx_allocator.buffs_pool); \
+        if (ucs_unlikely(UCS_STATUS_IS_ERR(_num_of_alloc))) { \
+            _failure; \
+        } \
+        _base_iface->rx_allocator.buffs_pool.num_of_buffers = _num_of_alloc; \
     }
 
 
