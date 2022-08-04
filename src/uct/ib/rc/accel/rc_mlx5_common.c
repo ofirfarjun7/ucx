@@ -113,32 +113,45 @@ uct_rc_mlx5_iface_srq_set_seg(uct_rc_mlx5_iface_common_t *iface,
     return UCS_OK;
 }
 
+static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_call_rx_allocator(uct_base_iface_t *base_iface) {
+    ssize_t num_of_alloc;
+
+    ucs_assert(base_iface->rx_allocator.buffs_pool.ready_idx == base_iface->rx_allocator.buffs_pool.num_of_buffers);
+
+    base_iface->rx_allocator.buffs_pool.num_of_buffers = UCT_ALLOCATOR_MAX_RX_BUFFS;
+    num_of_alloc = base_iface->rx_allocator.allocator.cb(
+            base_iface->rx_allocator.allocator.arg, &base_iface->rx_allocator.buffs_pool);
+    base_iface->rx_allocator.buffs_pool.ready_idx      = 0;
+    base_iface->rx_allocator.buffs_pool.num_of_buffers = num_of_alloc;
+    
+    if (ucs_unlikely(UCS_STATUS_IS_ERR(num_of_alloc) || (num_of_alloc == 0))) {
+        return UCS_ERR_NO_MEMORY;
+    }
+
+    return UCS_OK;
+}
+
 static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
         uct_rc_mlx5_iface_common_t *iface, uct_ib_mlx5_srq_seg_t *seg)
 {
     uct_base_iface_t *base_iface = &iface->super.super.super;
     void *hdr;
     uint64_t desc_map;
-    uint32_t payload_lkey;
-    size_t buffs_ready_idx;
+    ucs_status_t status;
     uct_ib_iface_recv_desc_t *desc;
 
-    payload_lkey = uct_ib_memh_get_lkey(base_iface->rx_allocator.buffs_pool.memh);
     desc_map = ~seg->srq.ptr_mask & UCS_MASK(UCT_IB_RECV_SG_LIST_LEN);
     if (desc_map) {
-        buffs_ready_idx = base_iface->rx_allocator.buffs_pool.ready_idx;
-        if (buffs_ready_idx == base_iface->rx_allocator.buffs_pool.num_of_buffers) {
-            base_iface->rx_allocator.buffs_pool.ready_idx      = 0;
-            base_iface->rx_allocator.buffs_pool.num_of_buffers = 0;
-            return UCS_ERR_NO_MEMORY;
+        if (base_iface->rx_allocator.buffs_pool.ready_idx == base_iface->rx_allocator.buffs_pool.num_of_buffers) {
+            status = uct_rc_mlx5_iface_call_rx_allocator(base_iface);
+            if (ucs_unlikely(status != UCS_OK)) {
+                return UCS_ERR_NO_MEMORY;
+            }
         }
-        UCT_TL_IFACE_GET_RX_DESC_SG(base_iface,
-                                    &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
-                                    desc,
-                                    base_iface->rx_allocator.buffs_pool.buffers[buffs_ready_idx],
-                                    payload_lkey,
-                                    return UCS_ERR_NO_MEMORY);
-
+        UCT_TL_IFACE_GET_RX_DESC(base_iface, &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
+                                 desc, return UCS_ERR_NO_MEMORY);
+        desc->payload_lkey = uct_ib_memh_get_lkey(base_iface->rx_allocator.buffs_pool.memh);
+        desc->payload      = base_iface->rx_allocator.buffs_pool.buffers[base_iface->rx_allocator.buffs_pool.ready_idx];
         /* Set receive data segment pointer. Length is pre-initialized. */
         hdr                = uct_ib_iface_recv_desc_hdr(&iface->super.super, desc);
         seg->srq.desc      = desc; /* Optimization for non-MP case (1 stride) */
@@ -268,19 +281,12 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_ll(uct_rc_mlx5_iface_common_t *iface)
 unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
 {
     uct_ib_mlx5_srq_t *srq   = &iface->rx.srq;
-    uct_base_iface_t *base_iface = &iface->super.super.super;
     uct_rc_iface_t *rc_iface = &iface->super;
     uct_ib_mlx5_srq_seg_t *seg;
-    size_t buffs_ready_idx       = base_iface->rx_allocator.buffs_pool.ready_idx;
     uint16_t count = 0, wqe_index, next_index;
     ucs_status_t status;
 
     uct_rc_mlx5_iface_srq_post_recv_check_union(iface);
-
-    if (buffs_ready_idx == 0) {
-        base_iface->rx_allocator.buffs_pool.num_of_buffers = UCT_ALLOCATOR_MAX_RX_BUFFS;
-        UCT_TL_IFACE_GET_RX_DATA_BUFFERS(base_iface, return count);
-    }
 
     wqe_index = srq->ready_idx;
     for (;;) {
@@ -314,21 +320,13 @@ unsigned uct_rc_mlx5_iface_srq_post_recv_sge(uct_rc_mlx5_iface_common_t *iface)
 unsigned uct_rc_mlx5_iface_srq_post_recv_ll_sge(uct_rc_mlx5_iface_common_t *iface)
 {
     uct_ib_mlx5_srq_t *srq       = &iface->rx.srq;
-    uct_base_iface_t *base_iface = &iface->super.super.super;
     uct_rc_iface_t *rc_iface     = &iface->super;
-    size_t buffs_ready_idx       = base_iface->rx_allocator.buffs_pool.ready_idx;
     uct_ib_mlx5_srq_seg_t *seg   = NULL;
     uint16_t count               = 0;
     uint16_t wqe_index, next_index;
     ucs_status_t status;
 
     ucs_assert(rc_iface->rx.srq.available > 0);
-
-    
-    if (buffs_ready_idx == 0) {
-        base_iface->rx_allocator.buffs_pool.num_of_buffers = UCT_ALLOCATOR_MAX_RX_BUFFS;
-        UCT_TL_IFACE_GET_RX_DATA_BUFFERS(base_iface, return count);
-    }
 
     wqe_index = srq->ready_idx;
     seg       = uct_ib_mlx5_srq_get_wqe(srq, wqe_index);

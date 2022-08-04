@@ -587,27 +587,6 @@ void uct_iface_mpool_config_copy(ucs_mpool_params_t *mp_params,
     }
 
 
-#define UCT_TL_IFACE_GET_RX_DESC_SG(_iface, _mp, _desc, _payload, _payload_lkey, _failure) \
-    { \
-        UCT_TL_IFACE_GET_RX_DESC(_iface, _mp, _desc, _failure); \
-        _desc->payload_lkey = _payload_lkey; \
-        _desc->payload      = _payload; \
-    }
-
-#define UCT_TL_IFACE_GET_RX_DATA_BUFFERS(_iface, _failure) \
-     { \
-        uct_base_iface_t *_base_iface = _iface; \
-        ssize_t _num_of_alloc         = _base_iface->rx_allocator.buffs_pool.num_of_buffers; \
-        \
-        _num_of_alloc = _base_iface->rx_allocator.allocator.cb( \
-                _base_iface->rx_allocator.allocator.arg, &_base_iface->rx_allocator.buffs_pool); \
-        if (ucs_unlikely(UCS_STATUS_IS_ERR(_num_of_alloc))) { \
-            _failure; \
-        } \
-        _base_iface->rx_allocator.buffs_pool.num_of_buffers = _num_of_alloc; \
-    }
-
-
 #define UCT_TL_IFACE_PUT_DESC(_desc) \
     { \
         ucs_mpool_put_inline(_desc); \
