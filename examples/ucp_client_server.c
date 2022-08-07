@@ -184,6 +184,7 @@ static void am_recv_cb(void *request, ucs_status_t status, size_t length,
                        void *user_data)
 {
     common_cb(user_data, "am_recv_cb");
+    mpool_allocator_put(am_data_desc.desc);
 }
 
 /**
@@ -520,7 +521,6 @@ ucs_status_t ucp_am_data_cb(void *arg, const void *header, size_t header_length,
                         iov[idx].length);
         offset += iov[idx].length;
     }
-    mpool_allocator_put(data);
 
     return UCS_OK;
 }
@@ -879,8 +879,8 @@ mpool_allocator_init(ucp_context_h context,
     mp_params.priv_size       = sizeof(mpool_allocator_buff_hdr_t);
     mp_params.elem_size       = buffer_size + sizeof(mpool_allocator_buff_hdr_t);
     mp_params.align_offset    = sizeof(mpool_allocator_buff_hdr_t);
-    mp_params.elems_per_chunk = 4096;
-    mp_params.max_elems       = 4096;
+    mp_params.elems_per_chunk = 1024;
+    mp_params.max_elems       = 1024;
     mp_params.ops             = &mpool_allocator_ops;
     mp_params.name            = "mpool_allocator";
     status                    = ucs_mpool_init(&mp_params, &allocator->mpool);
