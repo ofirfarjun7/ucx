@@ -1243,7 +1243,7 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
     void *data               = am_hdr + 1;
     size_t data_length       = total_length -
                                (sizeof(*am_hdr) + am_hdr->header_length);
-    void *user_hdr           = UCS_PTR_BYTE_OFFSET(data, data_length);
+    void *user_hdr           = UCS_PTR_BYTE_OFFSET(payload, data_length);
     ucs_status_t desc_status = UCS_OK;
     ucs_status_t status;
 
