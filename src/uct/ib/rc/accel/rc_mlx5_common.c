@@ -125,6 +125,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_call_rx_allocator(uct_
     base_iface->rx_allocator.buffs_pool.num_of_buffers = num_of_alloc;
     
     if (ucs_unlikely(UCS_STATUS_IS_ERR(num_of_alloc) || (num_of_alloc == 0))) {
+        base_iface->rx_allocator.buffs_pool.num_of_buffers = 0;
         return UCS_ERR_NO_MEMORY;
     }
 
