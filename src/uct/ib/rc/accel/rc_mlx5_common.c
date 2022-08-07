@@ -155,6 +155,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
         desc->payload      = base_iface->rx_allocator.buffs_pool.buffers[base_iface->rx_allocator.buffs_pool.ready_idx];
         /* Set receive data segment pointer. Length is pre-initialized. */
         hdr                = uct_ib_iface_recv_desc_hdr(&iface->super.super, desc);
+
         seg->srq.desc      = desc; /* Optimization for non-MP case (1 stride) */
         seg->srq.ptr_mask |= UCS_MASK(UCT_IB_RECV_SG_LIST_LEN);
         seg->dptr[UCT_IB_RX_SG_TL_HEADER_IDX].lkey = htonl(desc->header_lkey);
