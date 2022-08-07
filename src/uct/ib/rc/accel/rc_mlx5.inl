@@ -400,7 +400,9 @@ uct_rc_mlx5_iface_common_am_handler(uct_rc_mlx5_iface_common_t *iface,
     uct_ib_mlx5_srq_seg_t *seg;
     uint32_t qp_num;
     ucs_status_t status;
-    void* payload;
+    void *payload;
+    uct_rc_mlx5_hdr_t *concatenated_hdr = hdr;
+    size_t client_hdr_len = iface->super.super.super.rx_allocator.header_length;
 
     wqe_ctr = ntohs(cqe->wqe_counter);
     seg     = uct_ib_mlx5_srq_get_wqe(&iface->rx.srq, wqe_ctr);
@@ -413,7 +415,10 @@ uct_rc_mlx5_iface_common_am_handler(uct_rc_mlx5_iface_common_t *iface,
         rc_ops = ucs_derived_of(iface->super.super.ops, uct_rc_iface_ops_t);
 
         /* coverity[overrun-buffer-val] */
-        status = rc_ops->fc_handler(&iface->super, qp_num, &hdr->rc_hdr,
+        concatenated_hdr = ucs_alloca(byte_len);
+        memcpy(concatenated_hdr, hdr, sizeof(*hdr)+client_hdr_len);
+        memcpy(UCS_PTR_BYTE_OFFSET(concatenated_hdr, sizeof(*hdr)+client_hdr_len), payload, byte_len - sizeof(*hdr) - client_hdr_len);
+        status = rc_ops->fc_handler(&iface->super, qp_num, &concatenated_hdr->rc_hdr,
                                     byte_len - sizeof(*hdr),
                                     cqe->imm_inval_pkey, cqe->slid, flags);
     } else {

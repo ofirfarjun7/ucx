@@ -879,8 +879,8 @@ mpool_allocator_init(ucp_context_h context,
     mp_params.priv_size       = sizeof(mpool_allocator_buff_hdr_t);
     mp_params.elem_size       = buffer_size + sizeof(mpool_allocator_buff_hdr_t);
     mp_params.align_offset    = sizeof(mpool_allocator_buff_hdr_t);
-    mp_params.elems_per_chunk = 1024;
-    mp_params.max_elems       = 1024;
+    mp_params.elems_per_chunk = 32768;
+    mp_params.max_elems       = 32768;
     mp_params.ops             = &mpool_allocator_ops;
     mp_params.name            = "mpool_allocator";
     status                    = ucs_mpool_init(&mp_params, &allocator->mpool);
