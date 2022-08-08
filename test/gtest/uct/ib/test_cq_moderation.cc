@@ -93,7 +93,7 @@ protected:
     }
 
     static ucs_status_t
-    am_cb(void *arg, void *data, void *payload, size_t len, unsigned flags)
+    am_cb(void *arg, void *data, size_t len, unsigned flags, uct_am_callback_params_t *params)
     {
         ucs_assert_always(arg != NULL);
         test_uct_cq_moderation *self = static_cast<test_uct_cq_moderation*>(arg);

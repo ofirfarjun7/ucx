@@ -196,8 +196,7 @@ public:
         }
     }
 
-    static ucs_status_t am_hander(void *arg, void *data, void *payload,
-                                  size_t length, unsigned flags)
+    static ucs_status_t am_hander(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
     {
         /* we always assume that buffers provided by TLs are host memory */
         ucs_assert(UCS_CIRCULAR_COMPARE8(*(psn_t*)arg, <=, *(psn_t*)data));
