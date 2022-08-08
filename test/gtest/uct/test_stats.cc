@@ -119,7 +119,9 @@ public:
             return ucs_derived_of(e.iface(), uct_base_iface_t);
     }
 
-    static ucs_status_t am_handler(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
+    static ucs_status_t am_handler(void *arg, void *data, size_t length,
+                                   unsigned flags,
+                                   uct_am_callback_params_t *params)
     {
         return UCS_OK;
     }

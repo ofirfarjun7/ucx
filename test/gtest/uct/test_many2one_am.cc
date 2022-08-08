@@ -54,7 +54,9 @@ public:
         check_skip_test();
     }
 
-    static ucs_status_t am_handler(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
+    static ucs_status_t am_handler(void *arg, void *data, size_t length,
+                                   unsigned flags,
+                                   uct_am_callback_params_t *params)
     {
         test_many2one_am *self = reinterpret_cast<test_many2one_am*>(arg);
         return self->am_handler(data, length, flags);

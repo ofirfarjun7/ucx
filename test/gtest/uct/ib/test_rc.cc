@@ -234,7 +234,9 @@ public:
                                NULL, 0);
     }
 
-    static ucs_status_t am_handler_ordering(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
+    static ucs_status_t am_handler_ordering(void *arg, void *data,
+                                            size_t length, unsigned flags,
+                                            uct_am_callback_params_t *params)
     {
         uint64_t *prev_sn = (uint64_t*)arg;
         uint64_t sn       = *(uint64_t*)data;
@@ -570,7 +572,9 @@ public:
         return length;
     }
 
-    static ucs_status_t recv_handler(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
+    static ucs_status_t recv_handler(void *arg, void *data, size_t length,
+                                     unsigned flags,
+                                     uct_am_callback_params_t *params)
     {
         EXPECT_EQ(*(size_t*)arg, length);
         ++m_recv_count;

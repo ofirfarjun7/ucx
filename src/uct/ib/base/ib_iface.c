@@ -227,7 +227,7 @@ void uct_ib_iface_recv_desc_init(uct_iface_h tl_iface, void *obj,
 {
     uct_ib_iface_recv_desc_t *desc = obj;
 
-    desc->header_lkey = uct_ib_memh_get_lkey(memh);
+    desc->header_lkey  = uct_ib_memh_get_lkey(memh);
     desc->payload_lkey = 0;
     desc->payload      = NULL;
 }
@@ -1285,9 +1285,9 @@ UCS_CLASS_INIT_FUNC(uct_ib_iface_t, uct_iface_ops_t *tl_ops,
     self->config.rx_hdr_offset      = self->config.rx_payload_offset -
                                       init_attr->rx_hdr_len -
                                       self->super.rx_allocator.header_length;
-    self->config.rx_headroom_offset =
-            self->config.rx_payload_offset - rx_headroom -
-            self->super.rx_allocator.header_length;
+    self->config.rx_headroom_offset = self->config.rx_payload_offset -
+                                      rx_headroom -
+                                      self->super.rx_allocator.header_length;
     self->config.seg_size           = init_attr->seg_size;
     self->config.roce_path_factor   = config->roce_path_factor;
     self->config.tx_max_poll        = config->tx.max_poll;

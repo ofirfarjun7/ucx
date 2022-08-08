@@ -879,10 +879,10 @@ int uct_iface_local_is_reachable(uct_iface_local_addr_ns_t *addr_ns,
  * @param length   Length of received data.
  * @param flags    Mask with @ref uct_cb_param_flags
  */
-static inline ucs_status_t
-uct_iface_invoke_am(uct_base_iface_t *iface, uint8_t id, void *msg_hdr,
-                    unsigned length, unsigned flags,
-                    uct_am_callback_params_t *params)
+static inline ucs_status_t uct_iface_invoke_am(uct_base_iface_t *iface,
+                                               uint8_t id, void *msg_hdr,
+                                               unsigned length, unsigned flags,
+                                               uct_am_callback_params_t *params)
 {
     ucs_status_t     status;
     uct_am_handler_t *handler;
@@ -895,9 +895,8 @@ uct_iface_invoke_am(uct_base_iface_t *iface, uint8_t id, void *msg_hdr,
 
     handler = &iface->am[id];
     status  = handler->cb(handler->arg, msg_hdr, length, flags, params);
-    ucs_assertv((status == UCS_OK) ||
-                ((status == UCS_INPROGRESS) && (flags &
-                                                UCT_CB_PARAM_FLAG_DESC)),
+    ucs_assertv((status == UCS_OK) || ((status == UCS_INPROGRESS) &&
+                                       (flags & UCT_CB_PARAM_FLAG_DESC)),
                 "%s(arg=%p msg_hdr=%p length=%u flags=0x%x) returned %s",
                 ucs_debug_get_symbol_name((void*)handler->cb), handler->arg,
                 msg_hdr, length, flags, ucs_status_string(status));

@@ -62,7 +62,9 @@ uct_rc_verbs_iface_handle_am(uct_rc_iface_t *iface, uct_rc_hdr_t *hdr,
         status = rc_ops->fc_handler(iface, qp_num, hdr, length - sizeof(*hdr),
                                     imm_data, slid, UCT_CB_PARAM_FLAG_DESC);
     } else {
-        status = uct_iface_invoke_am(&iface->super.super, hdr->am_id, hdr + 1, length - sizeof(*hdr), UCT_CB_PARAM_FLAG_DESC, NULL);
+        status = uct_iface_invoke_am(&iface->super.super, hdr->am_id, hdr + 1,
+                                     length - sizeof(*hdr),
+                                     UCT_CB_PARAM_FLAG_DESC, NULL);
     }
 
     if (ucs_likely(status != UCS_INPROGRESS)) {

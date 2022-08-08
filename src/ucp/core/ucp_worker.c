@@ -211,7 +211,9 @@ static void ucp_worker_set_am_handlers(ucp_worker_iface_t *wiface, int is_proxy)
     }
 }
 
-static ucs_status_t ucp_stub_am_handler(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
+static ucs_status_t ucp_stub_am_handler(void *arg, void *data, size_t length,
+                                        unsigned flags,
+                                        uct_am_callback_params_t *params)
 {
     ucp_worker_h worker = arg;
     ucs_trace("worker %p: drop message", worker);
@@ -872,13 +874,13 @@ static uint64_t ucp_worker_get_exclude_caps(ucp_worker_h worker)
     return exclude_caps;
 }
 
-static UCS_F_ALWAYS_INLINE uct_mem_h
-ucp_worker_get_uct_memh(ucp_worker_h worker, ucp_mem_h ucp_memh, unsigned md_index)
+static UCS_F_ALWAYS_INLINE uct_mem_h ucp_worker_get_uct_memh(
+        ucp_worker_h worker, ucp_mem_h ucp_memh, unsigned md_index)
 {
-    unsigned uct_memh_idx      = 0;
-    unsigned md_bit_idx        = 0;
-    uint8_t *uct_memh_idx_mem  = worker->user_mem_allocator.uct_memh_idx_mem;
-    ucp_md_map_t md_map_p      = ucp_memh->md_map;
+    unsigned uct_memh_idx     = 0;
+    unsigned md_bit_idx       = 0;
+    uint8_t *uct_memh_idx_mem = worker->user_mem_allocator.uct_memh_idx_mem;
+    ucp_md_map_t md_map_p     = ucp_memh->md_map;
 
     assert(md_index < UCP_MD_INDEX_BITS);
     assert((md_map_p & UCS_BIT(md_index)) != 0);
@@ -918,8 +920,8 @@ UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
         return ret;
     }
 
-    resource = &context->tl_rscs[wiface->rsc_index];
-    md_index = resource->md_index;
+    resource    = &context->tl_rscs[wiface->rsc_index];
+    md_index    = resource->md_index;
     buffs->memh = ucp_worker_get_uct_memh(worker, ucp_memh, md_index);
 
     return ret;
@@ -1150,13 +1152,15 @@ static ucs_status_t ucp_worker_add_resource_ifaces(ucp_worker_h worker)
             iface_params.mode.device.dev_name = resource->tl_rsc.dev_name;
         }
 
-        iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_HEADER_LEN;
+        iface_params.field_mask |=
+                UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_HEADER_LEN;
         if (worker->user_mem_allocator.obj) {
-            iface_params.field_mask |= UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR |
-                                       UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_PAYLOAD_LEN;
+            iface_params.field_mask |=
+                    UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR |
+                    UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_PAYLOAD_LEN;
             iface_params.rx_allocator.cb = ucp_worker_user_allocator_get_cb;
             iface_params.rx_payload_len =
-                worker->user_mem_allocator.payload_length;
+                    worker->user_mem_allocator.payload_length;
         }
 
         status = ucp_worker_iface_open(worker, tl_id, &iface_params,
@@ -2402,11 +2406,13 @@ ucs_status_t ucp_worker_create(ucp_context_h context,
     }
 
     if (params->field_mask & UCP_WORKER_PARAM_FIELD_USER_ALLOCATOR) {
-        if ((params->user_allocator.arg == NULL) || (params->user_allocator.cb == NULL) ||
+        if ((params->user_allocator.arg == NULL) ||
+            (params->user_allocator.cb == NULL) ||
             (params->user_allocator.buffer_size == 0)) {
             ucs_error("invalid user allocator: allocator_obj %p, allocator_cb "
                       "%p, payload_length %lu\n",
-                      (void*)params->user_allocator.arg, (void*)params->user_allocator.cb,
+                      (void*)params->user_allocator.arg,
+                      (void*)params->user_allocator.cb,
                       params->user_allocator.buffer_size);
             status = UCS_ERR_INVALID_PARAM;
             goto err_free;

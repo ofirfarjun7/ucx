@@ -50,7 +50,9 @@ public:
 
     void test_iface_ops(int cq_len);
 
-    static ucs_status_t am_dummy_handler(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
+    static ucs_status_t am_dummy_handler(void *arg, void *data, size_t length,
+                                         unsigned flags,
+                                         uct_am_callback_params_t *params)
     {
         return UCS_OK;
     }
@@ -110,7 +112,9 @@ public:
         return UCS_OK;
     }
 
-    static ucs_status_t am_handler(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
+    static ucs_status_t am_handler(void *arg, void *data, size_t length,
+                                   unsigned flags,
+                                   uct_am_callback_params_t *params)
     {
         ++m_am_rx_count;
         return UCS_OK;

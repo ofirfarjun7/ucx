@@ -489,7 +489,7 @@ enum uct_am_callback_params_field {
     /** Enables @ref uct_am_callback_params_t::payload
      *  Indicates that payload field in uct_am_callback_params_t is valid.
      */
-    UCT_AM_CALLBACK_PARAM_FIELD_PAYLOAD  = UCS_BIT(0),
+    UCT_AM_CALLBACK_PARAM_FIELD_PAYLOAD = UCS_BIT(0)
 };
 
 
