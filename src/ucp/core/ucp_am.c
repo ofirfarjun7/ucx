@@ -1309,12 +1309,11 @@ ucp_am_handler_common(ucp_worker_h worker, ucp_am_hdr_t *am_hdr, void *payload,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_handler_reply,
-                 (am_arg, am_data, payload, am_length, am_flags), void *am_arg,
-                 void *am_data, void *payload, size_t am_length,
-                 unsigned am_flags)
+                 (am_arg, am_data, am_length, am_flags, params), void *am_arg, void *am_data, size_t am_length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_am_hdr_t *hdr       = (ucp_am_hdr_t*)am_data;
     ucp_worker_h worker     = (ucp_worker_h)am_arg;
+    void *payload           = params->payload;
     ucp_am_reply_ftr_t *ftr = UCS_PTR_BYTE_OFFSET(payload,
                                                   am_length - sizeof(*ftr) -
                                                           sizeof(ucp_am_hdr_t));
@@ -1330,12 +1329,11 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_am_handler_reply,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_handler,
-                 (am_arg, am_data, payload, am_length, am_flags), void *am_arg,
-                 void *am_data, void *payload, size_t am_length,
-                 unsigned am_flags)
+                 (am_arg, am_data, am_length, am_flags, params), void *am_arg, void *am_data, size_t am_length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker = am_arg;
     ucp_am_hdr_t *hdr   = am_data;
+    void *payload = params->payload;
 
     return ucp_am_handler_common(worker, hdr, payload, am_length, NULL,
                                  am_flags, 0ul, "am_handler");
@@ -1449,12 +1447,11 @@ ucp_am_handle_unfinished(ucp_worker_h worker, ucp_recv_desc_t *first_rdesc,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_long_first_handler,
-                 (am_arg, am_data, payload, am_length, am_flags), void *am_arg,
-                 void *am_data, void *payload, size_t am_length,
-                 unsigned am_flags)
+                 (am_arg, am_data, am_length, am_flags, params), void *am_arg, void *am_data, size_t am_length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker    = am_arg;
     ucp_am_hdr_t *hdr      = am_data;
+    void *payload          = params->payload;
     size_t user_hdr_length = hdr->header_length;
     ucp_recv_desc_t *mid_rdesc, *first_rdesc;
     ucp_am_mid_hdr_t *mid_hdr;
@@ -1566,9 +1563,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_am_long_first_handler,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_am_long_middle_handler,
-                 (am_arg, am_data, payload, am_length, am_flags), void *am_arg,
-                 void *am_data, void *payload, size_t am_length,
-                 unsigned am_flags)
+                 (am_arg, am_data, am_length, am_flags, params), void *am_arg, void *am_data, size_t am_length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker        = am_arg;
     ucp_am_mid_hdr_t *mid_hdr  = am_data;

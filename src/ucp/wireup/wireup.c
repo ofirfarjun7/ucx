@@ -794,10 +794,10 @@ void ucp_wireup_process_ack(ucp_worker_h worker, ucp_ep_h ep,
     ucp_wireup_remote_connected(ep);
 }
 
-static ucs_status_t ucp_wireup_msg_handler(void *arg, void *data, void *payload,
-                                           size_t length, unsigned flags)
+static ucs_status_t ucp_wireup_msg_handler(void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker   = arg;
+    void *payload         = params->payload;
     ucp_wireup_msg_t *msg;
     ucp_ep_h ep           = NULL;
     ucp_unpacked_address_t remote_address;

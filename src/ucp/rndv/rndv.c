@@ -1786,10 +1786,10 @@ err:
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_rts_handler,
-                 (arg, data, payload, length, tl_flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned tl_flags)
+                 (arg, data, length, tl_flags, params), void *arg, void *data, size_t length, unsigned tl_flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker = arg;
+    void *payload       = params->payload;
     ucp_rndv_rts_hdr_t *rts_hdr;
 
     ucp_am_concat_msg_hdr(data, payload, length, rts_hdr);
@@ -1802,10 +1802,10 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_rts_handler,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_ats_handler,
-                 (arg, data, payload, length, flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned flags)
+                 (arg, data, length, flags, params), void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker = arg;
+    void *payload       = params->payload;
     ucp_reply_hdr_t *rep_hdr;
     ucp_request_t *sreq;
 
@@ -2262,10 +2262,10 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_progress_rma_get_zcopy, (self),
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_atp_handler,
-                 (arg, data, payload, length, flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned flags)
+                 (arg, data, length, flags, params), void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker = arg;
+    void *payload       = params->payload;
     ucp_request_t *rtr_sreq, *req;
     ucp_mem_desc_t *mdesc;
     ucp_reply_hdr_t *rep_hdr;
@@ -2299,11 +2299,11 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_atp_handler,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_rtr_handler,
-                 (arg, data, payload, length, flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned flags)
+                 (arg, data, length, flags, params), void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker   = arg;
     ucp_context_h context = worker->context;
+    void *payload         = params->payload;
     ucp_ep_rndv_zcopy_config_t *put_zcopy;
     ucp_request_t *sreq;
     ucp_ep_h ep;
@@ -2426,10 +2426,10 @@ out_send:
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_rndv_data_handler,
-                 (arg, data, payload, length, flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned flags)
+                 (arg, data, length, flags, params), void *arg, void *data, size_t length, unsigned flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker = arg;
+    void *payload       = params->payload;
     ucp_request_t *rreq, *rndv_req;
     size_t recv_len;
     ucs_status_t status;

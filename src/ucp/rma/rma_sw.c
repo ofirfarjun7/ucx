@@ -149,8 +149,7 @@ void ucp_rma_sw_send_cmpl(ucp_ep_h ep)
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_put_handler,
-                 (arg, data, payload, length, am_flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned am_flags)
+                 (arg, data, length, am_flags, params), void *arg, void *data, size_t length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_put_hdr_t *puth = data;
     ucp_worker_h worker = arg;
@@ -168,8 +167,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_put_handler,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_rma_cmpl_handler,
-                 (arg, data, payload, length, am_flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned am_flags)
+                 (arg, data, length, am_flags, params), void *arg, void *data, size_t length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_cmpl_hdr_t *putackh = data;
     ucp_worker_h worker     = arg;
@@ -231,8 +229,7 @@ static ucs_status_t ucp_progress_get_reply(uct_pending_req_t *self)
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_get_req_handler,
-                 (arg, data, payload, length, am_flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned am_flags)
+                 (arg, data, length, am_flags, params), void *arg, void *data, size_t length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_get_req_hdr_t *getreqh = data;
     ucp_worker_h worker        = arg;
@@ -270,8 +267,7 @@ UCS_PROFILE_FUNC(ucs_status_t, ucp_get_req_handler,
 }
 
 UCS_PROFILE_FUNC(ucs_status_t, ucp_get_rep_handler,
-                 (arg, data, payload, length, am_flags), void *arg, void *data,
-                 void *payload, size_t length, unsigned am_flags)
+                 (arg, data, length, am_flags, params), void *arg, void *data, size_t length, unsigned am_flags, uct_am_callback_params_t *params)
 {
     ucp_worker_h worker             = arg;
     ucp_request_data_hdr_t *getreph = data;
