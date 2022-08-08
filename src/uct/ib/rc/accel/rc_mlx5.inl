@@ -395,14 +395,15 @@ uct_rc_mlx5_iface_common_am_handler(uct_rc_mlx5_iface_common_t *iface,
                                     uct_rc_mlx5_hdr_t *hdr, unsigned flags,
                                     unsigned byte_len, int poll_flags)
 {
+    uct_rc_mlx5_hdr_t *concatenated_hdr = hdr;
+    size_t client_hdr_len = iface->super.super.super.rx_allocator.header_length;
     uint16_t wqe_ctr;
     uct_rc_iface_ops_t *rc_ops;
     uct_ib_mlx5_srq_seg_t *seg;
     uint32_t qp_num;
     ucs_status_t status;
     void *payload;
-    uct_rc_mlx5_hdr_t *concatenated_hdr = hdr;
-    size_t client_hdr_len = iface->super.super.super.rx_allocator.header_length;
+    uct_am_callback_params_t params;
 
     wqe_ctr = ntohs(cqe->wqe_counter);
     seg     = uct_ib_mlx5_srq_get_wqe(&iface->rx.srq, wqe_ctr);
@@ -422,10 +423,9 @@ uct_rc_mlx5_iface_common_am_handler(uct_rc_mlx5_iface_common_t *iface,
                                     byte_len - sizeof(*hdr),
                                     cqe->imm_inval_pkey, cqe->slid, flags);
     } else {
-        status = uct_iface_invoke_am(&iface->super.super.super, hdr->rc_hdr.am_id,
-                                     hdr + 1, payload,
-                                     byte_len - sizeof(*hdr),
-                                     flags);
+        params.field_mask = UCT_AM_CALLBACK_PARAM_FIELD_PAYLOAD;
+        params.payload = payload;
+        status = uct_iface_invoke_am(&iface->super.super.super, hdr->rc_hdr.am_id, hdr + 1, byte_len - sizeof(*hdr), flags, &params);
     }
 
     uct_rc_mlx5_iface_release_srq_seg(iface, seg, cqe, wqe_ctr, status,
