@@ -114,7 +114,7 @@ uct_rc_mlx5_iface_srq_set_seg(uct_rc_mlx5_iface_common_t *iface,
 }
 
 static UCS_F_ALWAYS_INLINE ucs_status_t
-uct_rc_mlx5_iface_call_rx_allocator(uct_base_iface_t *base_iface)
+uct_rc_mlx5_iface_get_payload_buffers(uct_base_iface_t *base_iface)
 {
     ssize_t num_of_alloc;
 
@@ -150,7 +150,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
     if (desc_map) {
         if (base_iface->rx_allocator.buffs_pool.ready_idx ==
             base_iface->rx_allocator.buffs_pool.num_of_buffers) {
-            status = uct_rc_mlx5_iface_call_rx_allocator(base_iface);
+            status = uct_rc_mlx5_iface_get_payload_buffers(base_iface);
             if (ucs_unlikely(status != UCS_OK)) {
                 return UCS_ERR_NO_MEMORY;
             }
