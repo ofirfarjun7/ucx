@@ -418,7 +418,6 @@ ucs_status_t ucp_proto_rndv_rtr_handle_atp(void *arg, void *data, void *payload,
     return UCS_OK;
 }
 
-//TODO - Discuss with Yossi (ucp_request_data_hdr_t size always < ucp_am_hdr_t size?)
 ucs_status_t ucp_proto_rndv_handle_data(void *arg, void *data, void *payload,
                                         size_t length, unsigned flags)
 {

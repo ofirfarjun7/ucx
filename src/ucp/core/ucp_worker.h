@@ -252,13 +252,14 @@ struct ucp_worker_cm {
 UCS_PTR_MAP_TYPE(ep, 1);
 UCS_PTR_MAP_TYPE(request, 0);
 
-//TODO - move to iface's worker
+
 typedef struct ucp_worker_user_mem_allocator {
     void                   *obj;
     size_t                 payload_length;
     ucp_mem_allocator_cb_t get_buf;
     uint8_t                uct_memh_idx_mem[UCP_MD_INDEX_BITS];
 } ucp_worker_user_mem_allocator_t;
+
 
 /**
  * UCP worker (thread context).

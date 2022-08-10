@@ -617,7 +617,6 @@ ucp_am_pack_user_header(void *buffer, ucp_request_t *req)
                 req->send.msg_proto.am.header.length);
 }
 
-//TODO - check max size with Yossi
 #define ucp_am_concat_msg_hdr(_hdr, _payload, _length, _msg_hdr) \
 { \
     void *_buff = ucs_alloca(_length); \
