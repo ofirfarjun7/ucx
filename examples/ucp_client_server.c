@@ -565,7 +565,7 @@ static int send_recv_am(ucp_worker_h ucp_worker, ucp_ep_h ep, int is_server,
             params.op_attr_mask |= UCP_OP_ATTR_FLAG_NO_IMM_CMPL;
             params.cb.recv_am    = am_recv_cb,
             request              = ucp_am_recv_data_nbx(ucp_worker,
-                                                        am_data_desc.desc,
+                                                        am_data_desc.data_desc,
                                                         msg, msg_length,
                                                         &params);
         } else {
