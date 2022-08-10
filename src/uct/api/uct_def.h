@@ -529,7 +529,7 @@ typedef struct uct_am_callback_params {
  *                       a descriptor which may be released later.
  * @param [in]  length   Length of data.
  * @param [in]  flags    Mask with @ref uct_cb_param_flags
- * @param [in]  params   Optional params 
+ * @param [in]  params   Optional params
  *
  * @note This callback could be set and released
  *       by @ref uct_iface_set_am_handler function.
@@ -541,7 +541,7 @@ typedef struct uct_am_callback_params {
  *                          contain @ref UCT_CB_PARAM_FLAG_DESC value.
  *                          Otherwise, this is an error.
  *                          Optional descriptors passed in with @a params will be
- *                          released later by it's owner. 
+ *                          released later by it's owner.
  *
  */
 typedef ucs_status_t (*uct_am_callback_t)(void *arg, void *msg_hdr,
