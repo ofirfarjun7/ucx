@@ -1076,7 +1076,7 @@ struct uct_iface_attr {
  *
  *  This structure holds an memory allocator context and it's used for
  *  allocating rx buffers when performing post receive.
- *   
+ *
  */
 struct uct_rx_allocator {
     /* User allocator get cb */

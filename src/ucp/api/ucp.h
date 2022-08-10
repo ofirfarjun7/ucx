@@ -1229,7 +1229,7 @@ typedef struct ucp_worker_attr {
  * @param [in]  num_of_buffers Num of buffers requested by client.
  * @param [out] buffers        Array to fill with returned buffers.
  * @param [out] memh           Buffer's UCP memory handle.
- * 
+ *
  * @return number of allocated buffers or Error code as defined by @ref ucs_status_t
  */
 typedef ssize_t (*ucp_mem_allocator_cb_t)(void *allocator_obj,
@@ -1343,7 +1343,7 @@ typedef struct ucp_worker_params {
     uint64_t                client_id;
 
     /**
-     * User defined memory allocator 
+     * User defined memory allocator
      */
     struct {
         /**
