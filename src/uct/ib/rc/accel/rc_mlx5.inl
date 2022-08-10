@@ -424,7 +424,7 @@ uct_rc_mlx5_iface_common_am_handler(uct_rc_mlx5_iface_common_t *iface,
                                     cqe->imm_inval_pkey, cqe->slid, flags);
     } else {
         params.field_mask = UCT_AM_CALLBACK_PARAM_FIELD_PAYLOAD;
-        params.payload = payload;
+        params.payload    = payload;
         status = uct_iface_invoke_am(&iface->super.super.super, hdr->rc_hdr.am_id, hdr + 1, byte_len - sizeof(*hdr), flags, &params);
     }
 

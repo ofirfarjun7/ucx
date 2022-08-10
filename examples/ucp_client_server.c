@@ -564,8 +564,10 @@ static int send_recv_am(ucp_worker_h ucp_worker, ucp_ep_h ep, int is_server,
              * buffer. */
             params.op_attr_mask |= UCP_OP_ATTR_FLAG_NO_IMM_CMPL;
             params.cb.recv_am    = am_recv_cb,
-            request = ucp_am_recv_data_nbx(ucp_worker, am_data_desc.data_desc,
-                                           msg, msg_length, &params);
+            request              = ucp_am_recv_data_nbx(ucp_worker,
+                                                        am_data_desc.desc,
+                                                        msg, msg_length,
+                                                        &params);
         } else {
             /* Data has arrived eagerly and is ready for use, no need to
              * initiate receive operation. */

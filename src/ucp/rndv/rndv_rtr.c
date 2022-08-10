@@ -426,8 +426,7 @@ ucs_status_t ucp_proto_rndv_handle_data(void *arg, void *data, void *payload,
     size_t recv_len     = length - sizeof(ucp_request_data_hdr_t);
     size_t payload_d = sizeof(ucp_request_data_hdr_t) > sizeof(ucp_am_hdr_t) ?
                                sizeof(ucp_request_data_hdr_t) -
-                                       sizeof(ucp_am_hdr_t) :
-                               0;
+                                       sizeof(ucp_am_hdr_t) : 0;
     const ucp_proto_rndv_rtr_priv_t *rpriv;
     ucs_status_t status;
     ucp_request_t *req;

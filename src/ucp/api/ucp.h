@@ -162,19 +162,18 @@ enum ucp_feature {
  * present. It is used to enable backward compatibility support.
  */
 enum ucp_worker_params_field {
-    UCP_WORKER_PARAM_FIELD_THREAD_MODE = UCS_BIT(0), /**< UCP thread mode */
-    UCP_WORKER_PARAM_FIELD_CPU_MASK = UCS_BIT(1), /**< Worker's CPU bitmap */
-    UCP_WORKER_PARAM_FIELD_EVENTS = UCS_BIT(2), /**< Worker's events bitmap */
-    UCP_WORKER_PARAM_FIELD_USER_DATA    = UCS_BIT(3), /**< User data */
-    UCP_WORKER_PARAM_FIELD_EVENT_FD     = UCS_BIT(4), /**< External event file
+    UCP_WORKER_PARAM_FIELD_THREAD_MODE    = UCS_BIT(0), /**< UCP thread mode */
+    UCP_WORKER_PARAM_FIELD_CPU_MASK       = UCS_BIT(1), /**< Worker's CPU bitmap */
+    UCP_WORKER_PARAM_FIELD_EVENTS         = UCS_BIT(2), /**< Worker's events bitmap */
+    UCP_WORKER_PARAM_FIELD_USER_DATA      = UCS_BIT(3), /**< User data */
+    UCP_WORKER_PARAM_FIELD_EVENT_FD       = UCS_BIT(4), /**< External event file
                                                            descriptor */
-    UCP_WORKER_PARAM_FIELD_FLAGS        = UCS_BIT(5), /**< Worker flags */
-    UCP_WORKER_PARAM_FIELD_NAME         = UCS_BIT(6), /**< Worker name */
-    UCP_WORKER_PARAM_FIELD_AM_ALIGNMENT = UCS_BIT(7), /**< Alignment of active
-                                                           messages on the receiver */
-    UCP_WORKER_PARAM_FIELD_CLIENT_ID    = UCS_BIT(8), /**< Client id */
-    UCP_WORKER_PARAM_FIELD_USER_ALLOCATOR = UCS_BIT(
-            9) /**< Pass user allocator to worker
+    UCP_WORKER_PARAM_FIELD_FLAGS          = UCS_BIT(5), /**< Worker flags */
+    UCP_WORKER_PARAM_FIELD_NAME           = UCS_BIT(6), /**< Worker name */
+    UCP_WORKER_PARAM_FIELD_AM_ALIGNMENT   = UCS_BIT(7), /**< Alignment of active
+                                                             messages on the receiver */
+    UCP_WORKER_PARAM_FIELD_CLIENT_ID      = UCS_BIT(8), /**< Client id */
+    UCP_WORKER_PARAM_FIELD_USER_ALLOCATOR = UCS_BIT(9)  /**< Pass user allocator to worker
                                                              to use for AM payload buffers.
                                                              Supporting only rcx/dcx transports.*/
 };
@@ -1251,7 +1250,7 @@ typedef struct ucp_worker_params {
      * Fields not specified in this mask will be ignored.
      * Provides ABI compatibility with respect to adding new fields.
      */
-    uint64_t          field_mask;
+    uint64_t                field_mask;
 
     /**
      * The parameter thread_mode suggests the thread safety mode which worker
@@ -1265,7 +1264,7 @@ typedef struct ucp_worker_params {
      * suggested mode. The actual thread mode of the worker should be obtained
      * using the query interface @ref ucp_worker_query.
      */
-    ucs_thread_mode_t thread_mode;
+    ucs_thread_mode_t       thread_mode;
 
     /**
      * Mask of which CPUs worker resources should preferably be allocated on.
@@ -1274,7 +1273,7 @@ typedef struct ucp_worker_params {
      * UCP_WORKER_PARAM_FIELD_CPU_MASK), resources are allocated according to
      * system's default policy.
      */
-    ucs_cpu_set_t     cpu_mask;
+    ucs_cpu_set_t           cpu_mask;
 
     /**
      * Mask of events (@ref ucp_wakeup_event_t) which are expected on wakeup.
@@ -1283,7 +1282,7 @@ typedef struct ucp_worker_params {
      * UCP_WORKER_PARAM_FIELD_EVENTS), all types of events will trigger on
      * wakeup.
      */
-    unsigned          events;
+    unsigned                events;
 
     /**
      * User data associated with the current worker.
@@ -1291,7 +1290,7 @@ typedef struct ucp_worker_params {
      * If it's not set (along with its corresponding bit in the field_mask -
      * UCP_WORKER_PARAM_FIELD_USER_DATA), it will default to NULL.
      */
-    void              *user_data;
+    void                    *user_data;
 
     /**
      * External event file descriptor.
@@ -1308,7 +1307,7 @@ typedef struct ucp_worker_params {
      * Otherwise, events will be reported to the event file descriptor returned
      * from @ref ucp_worker_get_efd().
      */
-    int               event_fd;
+    int                     event_fd;
 
     /**
      * Worker flags.
@@ -1316,7 +1315,7 @@ typedef struct ucp_worker_params {
      * If @ref UCP_WORKER_PARAM_FIELD_FLAGS is not set in the field_mask, the
      * value of this field will default to 0.
      */
-    uint64_t          flags;
+    uint64_t                flags;
 
     /**
      * Tracing and analysis tools can identify the worker using this name. To
@@ -1326,14 +1325,14 @@ typedef struct ucp_worker_params {
      * @ref UCP_WORKER_PARAM_FIELD_NAME in the field mask. If not, then a
      * default unique name will be created for you.
      */
-    const char        *name;
+    const char              *name;
 
     /**
      * Minimal address alignment of the active message data pointer as passed
      * in argument @a data to the active message handler, defined as
      * @a ucp_am_recv_callback_t.
      */
-    size_t            am_alignment;
+    size_t                  am_alignment;
 
     /**
     * Client id that is sent as part of the connection request payload
@@ -1341,7 +1340,7 @@ typedef struct ucp_worker_params {
     * this value can be obtained from @ref ucp_conn_request_h
     * using @ref ucp_conn_request_query.
     */
-    uint64_t          client_id;
+    uint64_t                client_id;
 
     /**
      * User defined memory allocator 
