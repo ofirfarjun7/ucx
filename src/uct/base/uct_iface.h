@@ -294,6 +294,7 @@ typedef struct uct_base_iface {
             size_t               header_length;
             size_t               size;
             uct_rx_allocator_t   allocator;
+            int                  default_allocator;
         } config;
 
         struct {

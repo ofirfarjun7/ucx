@@ -134,8 +134,9 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
         UCT_TL_IFACE_GET_RX_DESC(
                 base_iface, &iface->super.rx.mps[UCT_IB_RX_SG_TL_HEADER_IDX],
                 desc, return UCS_ERR_NO_MEMORY);
-        desc->payload_lkey = uct_ib_memh_get_lkey(uct_iface_rx_allocator_get_memh(base_iface));
-        desc->payload      = uct_iface_rx_allocator_get_buffer(base_iface);
+        desc->release_payload = base_iface->rx_allocator.config.default_allocator;
+        desc->payload         = uct_iface_rx_allocator_get_buffer(base_iface);
+        desc->payload_lkey    = uct_ib_memh_get_lkey(uct_iface_rx_allocator_get_memh(base_iface));
         /* Set receive data segment pointer. Length is pre-initialized. */
         hdr = uct_ib_iface_recv_desc_hdr(&iface->super.super, desc);
 
@@ -727,7 +728,10 @@ void uct_rc_mlx5_release_desc(uct_recv_desc_t *self, void *desc)
 {
     uct_rc_mlx5_release_desc_t *release = ucs_derived_of(self,
                                                          uct_rc_mlx5_release_desc_t);
-    void *ib_desc = (char*)desc - release->offset;
+    uct_ib_iface_recv_desc_t *ib_desc = (uct_ib_iface_recv_desc_t*)((char*)desc - release->offset);
+    if (ucs_unlikely(ib_desc->release_payload)) {
+        ucs_mpool_put_inline(ib_desc->payload);
+    }
     ucs_mpool_put_inline(ib_desc);
 }
 

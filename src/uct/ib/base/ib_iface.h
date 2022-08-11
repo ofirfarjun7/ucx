@@ -363,9 +363,10 @@ UCS_CLASS_DECLARE(uct_ib_iface_t, uct_iface_ops_t*, uct_ib_iface_ops_t*,
  *
  */
 typedef struct uct_ib_iface_recv_desc {
-    void     *payload;
-    uint32_t payload_lkey;
     uint32_t header_lkey;
+    uint32_t payload_lkey;
+    void     *payload;
+    int      release_payload;
 } UCS_S_PACKED uct_ib_iface_recv_desc_t;
 
 
