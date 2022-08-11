@@ -290,10 +290,13 @@ typedef struct uct_base_iface {
     } config;
 
     struct {
-        size_t                     header_length;
-        size_t                     size;
-        uct_user_allocator_buffs_t buffs_pool;
-        uct_rx_allocator_t         allocator;
+        size_t               header_length;
+        size_t               size;
+        size_t               ready_idx;
+        size_t               available;
+        uct_mem_h            memh;
+        void                 *buffers[UCT_ALLOCATOR_MAX_RX_BUFFS];
+        uct_rx_allocator_t   allocator;
     } rx_allocator;
 
     UCS_STATS_NODE_DECLARE(stats)            /* Statistics */

@@ -899,8 +899,8 @@ static UCS_F_ALWAYS_INLINE uct_mem_h ucp_worker_get_uct_memh(
     return ucp_memh->uct[uct_memh_idx_mem[md_index]];
 }
 
-UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
-                 void *arg, uct_user_allocator_buffs_t *buffs)
+UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, num_of_buffers, memh, buffers),
+                 void *arg, size_t num_of_buffers, uct_mem_h *memh, void **buffers)
 {
     const ucp_worker_iface_t *wiface = (ucp_worker_iface_t*)arg;
     const ucp_worker_h worker        = wiface->worker;
@@ -910,19 +910,20 @@ UCS_PROFILE_FUNC(ssize_t, ucp_worker_user_allocator_get_cb, (arg, buffs),
     ucp_mem_h ucp_memh;
     ssize_t ret;
 
-    assert(buffs != NULL);
+    assert(buffers != NULL);
+    assert(memh != NULL);
 
     ret = worker->user_mem_allocator.get_buf(worker->user_mem_allocator.obj,
-                                             buffs->num_of_buffers,
-                                             buffs->buffers, &ucp_memh);
+                                             num_of_buffers,
+                                             buffers, &ucp_memh);
 
     if (ucs_unlikely(ret <= 0)) {
         return ret;
     }
 
-    resource    = &context->tl_rscs[wiface->rsc_index];
-    md_index    = resource->md_index;
-    buffs->memh = ucp_worker_get_uct_memh(worker, ucp_memh, md_index);
+    resource = &context->tl_rscs[wiface->rsc_index];
+    md_index = resource->md_index;
+    *memh    = ucp_worker_get_uct_memh(worker, ucp_memh, md_index);
 
     return ret;
 }

@@ -490,19 +490,19 @@ UCS_CLASS_CLEANUP_FUNC(uct_iface_t)
 UCS_CLASS_DEFINE(uct_iface_t, void);
 
 static ssize_t
-uct_base_iface_default_get_buff_cb(void *arg, uct_user_allocator_buffs_t *buf)
+uct_base_iface_default_get_buff_cb(void *arg, size_t num_of_buffers, uct_mem_h *memh, void **buffers)
 {
     ucs_mpool_t *mp = arg;
     uct_iface_recv_desc_t *obj;
     size_t buff_idx;
 
-    for (buff_idx = 0; buff_idx < buf->num_of_buffers; buff_idx++) {
+    for (buff_idx = 0; buff_idx < num_of_buffers; buff_idx++) {
         obj = ucs_mpool_get_inline(mp);
         if (ucs_unlikely(obj == NULL)) {
             return buff_idx;
         }
-        buf->memh              = obj->uct_memh;
-        buf->buffers[buff_idx] = obj + 1;
+        *memh             = obj->uct_memh;
+        buffers[buff_idx] = obj + 1;
     }
 
     return buff_idx;
@@ -516,8 +516,8 @@ uct_base_iface_init_rx_buffers_allocator(uct_base_iface_t *iface,
     iface->rx_allocator.allocator.cb  = uct_base_iface_default_get_buff_cb;
     iface->rx_allocator.header_length = 0;
     iface->rx_allocator.size          = 8192;
-    iface->rx_allocator.buffs_pool.ready_idx      = 0;
-    iface->rx_allocator.buffs_pool.num_of_buffers = 0;
+    iface->rx_allocator.ready_idx = 0;
+    iface->rx_allocator.available = 0;
 
     if ((params->field_mask &
          UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_HEADER_LEN) != 0) {
