@@ -124,7 +124,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t uct_rc_mlx5_iface_srq_set_seg_sge(
 
     desc_map = ~seg->srq.ptr_mask & UCS_MASK(UCT_IB_RECV_SG_LIST_LEN);
     if (desc_map) {
-        if (rx_allocator_is_empty(base_iface->rx_allocator)) {
+        if (uct_iface_rx_allocator_is_empty(base_iface->rx_allocator)) {
             status = uct_iface_rx_allocator_get_buffers(base_iface);
             if (ucs_unlikely(status != UCS_OK)) {
                 return UCS_ERR_NO_MEMORY;

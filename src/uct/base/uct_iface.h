@@ -1028,7 +1028,7 @@ static UCS_F_ALWAYS_INLINE int uct_ep_op_is_fetch(uct_ep_operation_t op)
 /**
  * Check if rx_allocator cache is empty
  */
-#define rx_allocator_is_empty(_rx_allocator) (_rx_allocator.ready_idx == \
+#define uct_iface_rx_allocator_is_empty(_rx_allocator) (_rx_allocator.ready_idx == \
                                               _rx_allocator.available)
 
 /**
@@ -1039,7 +1039,7 @@ uct_iface_rx_allocator_get_buffers(uct_base_iface_t *base_iface)
 {
     ssize_t num_of_alloc;
 
-    ucs_assert(rx_allocator_is_empty(base_iface->rx_allocator));
+    ucs_assert(uct_iface_rx_allocator_is_empty(base_iface->rx_allocator));
     num_of_alloc = base_iface->rx_allocator.allocator.cb(
             base_iface->rx_allocator.allocator.arg,
             UCT_ALLOCATOR_MAX_RX_BUFFS,
@@ -1062,7 +1062,7 @@ uct_iface_rx_allocator_get_buffers(uct_base_iface_t *base_iface)
 static UCS_F_ALWAYS_INLINE void*
 uct_iface_rx_allocator_get_buffer(uct_base_iface_t *base_iface) {
     void* buff;
-    ucs_assert(!rx_allocator_is_empty(base_iface->rx_allocator));
+    ucs_assert(!uct_iface_rx_allocator_is_empty(base_iface->rx_allocator));
     buff = base_iface->rx_allocator.buffers_cache[base_iface->rx_allocator.ready_idx];
     base_iface->rx_allocator.ready_idx++;
     return buff;
