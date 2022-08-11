@@ -653,7 +653,7 @@ size_t uct_ib_iface_hdr_size(size_t max_inline, size_t min_size)
 static UCS_F_ALWAYS_INLINE size_t
 uct_ib_iface_tl_hdr_length(uct_ib_iface_t *iface)
 {
-    return iface->config.rx_payload_offset - iface->config.rx_hdr_offset;
+    return iface->config.rx_payload_offset - iface->config.rx_hdr_offset + iface->super.rx_allocator.header_length;
 }
 
 static UCS_F_ALWAYS_INLINE void

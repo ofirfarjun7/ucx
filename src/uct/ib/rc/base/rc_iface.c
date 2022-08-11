@@ -589,7 +589,7 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
 
     status = uct_iface_mpool_init(&iface->super,
                                   &mp[UCT_IB_RX_SG_TL_HEADER_IDX],
-                                  iface->config.rx_payload_offset, align_offset,
+                                  iface->config.rx_payload_offset + iface->super.rx_allocator.header_length, align_offset,
                                   alignment, &config->rx.mp, grow,
                                   uct_ib_iface_recv_desc_init, name);
 
