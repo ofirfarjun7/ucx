@@ -396,7 +396,7 @@ uct_rc_mlx5_iface_common_am_handler(uct_rc_mlx5_iface_common_t *iface,
                                     unsigned byte_len, int poll_flags)
 {
     uct_rc_mlx5_hdr_t *concatenated_hdr = hdr;
-    size_t client_hdr_len = iface->super.super.super.rx_allocator.header_length;
+    size_t client_hdr_len = iface->super.super.super.rx_allocator.config.header_length;
     uint16_t wqe_ctr;
     uct_rc_iface_ops_t *rc_ops;
     uct_ib_mlx5_srq_seg_t *seg;
@@ -1857,7 +1857,7 @@ uct_ib_mlx5_srq_buff_init_common(uct_rc_mlx5_iface_common_t *iface, uint32_t hea
     } else {
         sge_sizes[UCT_IB_RX_SG_TL_HEADER_IDX] = hdr_len;
         sge_sizes[UCT_IB_RX_SG_PAYLOAD_IDX] =
-                iface->super.super.super.rx_allocator.size;
+                iface->super.super.super.rx_allocator.config.size;
         uct_ib_mlx5_srq_buff_init_sg(&iface->rx.srq, head, tail, sge_sizes,
                                      iface->tm.mp.num_strides);
     }
