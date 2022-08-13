@@ -518,7 +518,7 @@ uct_base_iface_init_rx_buffers_allocator(uct_base_iface_t *iface,
     iface->rx_allocator.config.size              = 8192;
     iface->rx_allocator.config.default_allocator = 1;
     iface->rx_allocator.config.allocator.arg     = NULL;
-    iface->rx_allocator.config.allocator.cb  = uct_base_iface_default_get_buff_cb;
+    iface->rx_allocator.config.allocator.cb      = uct_base_iface_default_get_buff_cb;
 
     if ((params->field_mask &
          UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR_HEADER_LEN) != 0) {
