@@ -598,7 +598,7 @@ uct_rc_iface_recv_sg_mpools_init(uct_ib_iface_t *iface,
     if ((params->field_mask & UCT_IFACE_PARAM_FIELD_USER_ALLOCATOR) == 0) {
         status = uct_iface_mpool_init(&iface->super,
                                       &mp[UCT_IB_RX_SG_PAYLOAD_IDX],
-                                      iface->super.rx_allocator.config.size,
+                                      sizeof(uct_iface_recv_desc_t) + iface->super.rx_allocator.config.size,
                                       0, UCS_SYS_CACHE_LINE_SIZE, &config->rx.mp,
                                       grow, uct_iface_recv_desc_init, name);
 

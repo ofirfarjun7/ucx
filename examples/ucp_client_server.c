@@ -879,6 +879,7 @@ ucs_status_t mpool_allocator_init(ucp_context_h context,
     mp_params.align_offset    = sizeof(mpool_allocator_buff_hdr_t);
     mp_params.elems_per_chunk = 32768;
     mp_params.max_elems       = 32768;
+    mp_params.max_chunk_size  = -1;
     mp_params.ops             = &mpool_allocator_ops;
     mp_params.name            = "mpool_allocator";
     status                    = ucs_mpool_init(&mp_params, &allocator->mpool);
@@ -926,7 +927,9 @@ static void mpool_allocator_put(void *obj)
 void mpool_allocator_clean(mpool_allocator_obj_t *allocator)
 {
     ucs_mpool_cleanup(&allocator->mpool, 0);
-    free(allocator);
+    if (allocator) {
+        free(allocator);
+    }
 }
 
 /**

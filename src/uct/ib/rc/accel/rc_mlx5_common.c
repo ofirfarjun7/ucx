@@ -729,8 +729,10 @@ void uct_rc_mlx5_release_desc(uct_recv_desc_t *self, void *desc)
     uct_rc_mlx5_release_desc_t *release = ucs_derived_of(self,
                                                          uct_rc_mlx5_release_desc_t);
     uct_ib_iface_recv_desc_t *ib_desc = (uct_ib_iface_recv_desc_t*)((char*)desc - release->offset);
+    void *payload_desc;
     if (ucs_unlikely(ib_desc->release_payload)) {
-        ucs_mpool_put_inline(ib_desc->payload);
+        payload_desc = UCS_PTR_BYTE_OFFSET(ib_desc->payload, (int)-release->payload_offset);
+        ucs_mpool_put_inline(payload_desc);
     }
     ucs_mpool_put_inline(ib_desc);
 }
