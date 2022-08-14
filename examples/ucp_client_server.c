@@ -821,14 +821,10 @@ void mpool_allocator_chunk_release(ucs_mpool_t *mp, void *chunk)
     free(memh_attr.address);
 }
 
-static void mpool_allocator_obj_init(ucs_mpool_t *mp, void *obj, void *chunk)
-{
-}
-
 static ucs_mpool_ops_t mpool_allocator_ops = {
     mpool_allocator_chunk_alloc,
     mpool_allocator_chunk_release,
-    mpool_allocator_obj_init,
+    NULL,
     NULL,
     NULL
 };
