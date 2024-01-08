@@ -1101,7 +1101,7 @@ private:
  */
 UCS_TEST_SKIP_COND_P(test_ucp_am_nbx_send_copy_header, all_protos,
                      /* FIXME: Disabled due to unresolved failure - CI Hang */
-                     true || (has_transport("self") && RUNNING_ON_VALGRIND),
+                     (has_transport("self") && RUNNING_ON_VALGRIND),
                      "TCP_SNDBUF?=1k")
 {
     const unsigned random_iterations = 20;
