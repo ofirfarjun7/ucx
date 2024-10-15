@@ -184,11 +184,12 @@ protected:
     void test_rereg(unsigned map_flags = 0, bool import_mem = false);
     void test_rkey_management(ucp_mem_h memh, bool is_dummy,
                               bool expect_rma_offload);
+    void test_invalidate_imported();
 
 private:
     void check_distance_precision(double rkey_value, double topo_value,
                                   size_t pack_min, size_t pack_max);
-    void test_rkey_proto(ucp_mem_h memh);
+    void test_rkey_proto(ucp_mem_h memh, unsigned int uct_flags = 0);
     void test_rereg_local_mem(ucp_mem_h memh, void *ptr, size_t size,
                               unsigned map_flags);
     static ucs_log_func_rc_t
@@ -435,7 +436,7 @@ void test_ucp_mmap::check_distance_precision(double rkey_value,
     }
 }
 
-void test_ucp_mmap::test_rkey_proto(ucp_mem_h memh)
+void test_ucp_mmap::test_rkey_proto(ucp_mem_h memh, unsigned int uct_flags)
 {
     ucs_sys_dev_distance_t rkey_dist, topo_dist;
     ucs_sys_device_t sys_dev;
@@ -469,7 +470,7 @@ void test_ucp_mmap::test_rkey_proto(ucp_mem_h memh)
     ssize_t packed_size = ucp_rkey_pack_memh(sender().ucph(), memh->md_map,
                                              memh, ucp_memh_address(memh),
                                              ucp_memh_length(memh), &mem_info,
-                                             sys_dev_map, &sys_distance[0], 0,
+                                             sys_dev_map, &sys_distance[0], uct_flags,
                                              &rkey_buffer[0]);
     ASSERT_EQ((ssize_t)rkey_size, packed_size);
 
@@ -764,6 +765,17 @@ void test_ucp_mmap::test_rereg(unsigned map_flags, bool import_mem)
 
         delete buf;
     }
+}
+
+void test_ucp_mmap::test_invalidate_imported()
+{
+    mem_chunk mem(sender().ucph());
+    ucp_mem_h imported_memh = import_memh(mem.memh);
+    EXPECT_TRUE(imported_memh->flags & UCP_MEMH_FLAG_IMPORTED);
+
+    test_rkey_proto(imported_memh, UCT_MD_MKEY_PACK_FLAG_INVALIDATE_RMA);
+
+    ASSERT_UCS_OK(ucp_mem_unmap(receiver().ucph(), imported_memh));
 }
 
 UCS_TEST_P(test_ucp_mmap, rereg)
@@ -1235,6 +1247,10 @@ UCS_TEST_P(test_ucp_mmap_export, export_import) {
     EXPECT_TRUE(imported_memh->flags & UCP_MEMH_FLAG_IMPORTED);
 
     ASSERT_UCS_OK(ucp_mem_unmap(receiver().ucph(), imported_memh));
+}
+
+UCS_TEST_P(test_ucp_mmap_export, export_import_invalidate) {
+    test_invalidate_imported();
 }
 
 UCP_INSTANTIATE_TEST_CASE_GPU_AWARE(test_ucp_mmap_export)
