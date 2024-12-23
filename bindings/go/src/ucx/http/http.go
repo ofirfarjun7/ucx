@@ -302,6 +302,7 @@ func StartServer(addr string, handler http.Handler) (serve func() error, err err
 type tracker struct {
 	resp chan *http.Response
 	id int
+	noBody bool
 }
 
 type Transport struct {
@@ -318,6 +319,12 @@ func (a *Transport) handleResponse(header unsafe.Pointer, headerSize uint64, dat
 		fmt.Printf("handleResponse %v\n", err)
 		return ucx.UCS_ERR_IO_ERROR
 	}
+
+	req, _ := a.reqs.Load(reqId)
+	if req.(*tracker).noBody {
+		reader.left = 0
+	}
+
 	resp := &http.Response{
 		Header: make(http.Header),
 		Body: reader,
@@ -335,7 +342,6 @@ func (a *Transport) handleResponse(header unsafe.Pointer, headerSize uint64, dat
 		resp.Header.Set(k,v)
 	}
 
-	req, _ := a.reqs.Load(reqId)
 	req.(*tracker).resp <- resp
 	return ucx.UCS_OK
 }
@@ -429,7 +435,11 @@ func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	tr := &tracker{ resp: make(chan *http.Response, 1), id: reqId }
+	tr := &tracker{
+		resp: make(chan *http.Response, 1),
+		id: reqId,
+		noBody: req.Method == http.MethodHead,
+	}
 	a.reqs.Store(reqId, tr)
 
 	headerPtr, headerLen := getBuf(header)
