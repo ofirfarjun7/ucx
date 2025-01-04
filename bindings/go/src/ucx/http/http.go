@@ -72,17 +72,13 @@ type Server struct {
 	context
 	listener *ucx.UcpListener
 	handler http.Handler
-
-	eps []*ucx.UcpEp
-	reqs []*ucx.UcpRequest
 }
 
 type responseWriter struct {
-	server   *Server
 	ep       *ucx.UcpEp
 	headers  http.Header
 	status   int
-	done     chan bool
+	wrote    chan struct{}
 	id	 int
 	headerSent bool
 }
@@ -93,7 +89,7 @@ func (w *responseWriter) Header() http.Header {
 
 func (w *responseWriter) onData(request *ucx.UcpRequest, status ucx.UcsStatus) {
 	request.Close()
-	w.done <- true
+	w.wrote <- struct{}{}
 }
 
 func (w *responseWriter) Write(data []byte) (int, error) {
@@ -103,11 +99,10 @@ func (w *responseWriter) Write(data []byte) (int, error) {
 	dataPtr, dataLen := getBuf(data)
 	reqParams := &ucx.UcpRequestParams{}
 	reqParams.SetCallback(w.onData)
-	w.done = make(chan bool, 1)
 	if _, err := w.ep.SendStreamNonBlocking(w.id, dataPtr, dataLen, reqParams); err != nil {
 		return 0, err
 	}
-	<-w.done
+	<-w.wrote
 	return int(dataLen), nil
 }
 
@@ -128,33 +123,27 @@ func (w *responseWriter) WriteHeader(statusCode int) {
 		return
 	}
 
-	w.done = make(chan bool, 1)
-	reqParams := &ucx.UcpRequestParams{}
-	reqParams.SetCallback(w.onData)
-
 	headerPtr, headerLen := getBuf(header)
 	_, err = w.ep.SendAmNonBlocking(AM_RESP,
 		headerPtr, headerLen, nil, 0,
-		ucx.UCP_AM_SEND_FLAG_REPLY, reqParams)
+		ucx.UCP_AM_SEND_FLAG_REPLY, nil)
 	if err != nil {
 		return
 	}
-	<-w.done
 	w.headerSent = true
 }
 
 type dataReader struct {
 	ep *ucx.UcpEp
-	done chan int
-	needPutCh bool
+	read chan int
 	left int
 	id int
-	a* Transport
+	onClose func()
 }
 
 func (r *dataReader) onData(request *ucx.UcpRequest, status ucx.UcsStatus, length uint64) {
 	request.Close()
-	r.done <- int(length)
+	r.read <- int(length)
 }
 
 func (r *dataReader) Read(p []byte) (length int, res error) {
@@ -162,26 +151,25 @@ func (r *dataReader) Read(p []byte) (length int, res error) {
 		dataPtr, dataLen := getBuf(p)
 		reqParams := &ucx.UcpRequestParams{}
 		reqParams.SetCallback(r.onData)
-		r.done = make(chan int, 1)
 		if _, res = r.ep.RecvStreamNonBlocking(r.id, dataPtr, dataLen, reqParams); res != nil {
 			return 0, res
 		}
-		length = <-r.done
+		length = <-r.read
 		r.left -= length
 		if r.left < 0 {
 			log.Fatalf("Read underrun")
 		}
 	}
 	if r.left == 0 {
-		if r.needPutCh {
-			putCh(&r.a.chmap, r.id)
-		}
 		res = io.EOF
 	}
 	return length, res
 }
 
 func (r *dataReader) Close() (error) {
+	if r.onClose != nil {
+		r.onClose()
+	}
 	return nil
 }
 
@@ -200,6 +188,7 @@ func handleAm(header unsafe.Pointer, headerSize uint64, replyEp *ucx.UcpEp) (map
 		ep: replyEp,
 		left: int(length),
 		id: reqId,
+		read: make(chan int, 1),
 	}
 
 	return headerMap, r, length, reqId, nil
@@ -221,12 +210,11 @@ func (s *Server) handleRequest(header unsafe.Pointer, headerSize uint64, data *u
 	req.ContentLength = contentLength
 	req.RequestURI = req.URL.EscapedPath()
 	writer := &responseWriter{
-		server: s,
 		ep: replyEp,
 		headers: make(http.Header),
 		id: reqId,
+		wrote: make(chan struct{}, 1),
 	}
-	s.eps = append(s.eps, replyEp)
 
 	go s.handler.ServeHTTP(writer, req)
 	return ucx.UCS_OK
@@ -299,10 +287,15 @@ func StartServer(addr string, handler http.Handler) (serve func() error, err err
 	return
 }
 
+const (
+	TR_PENDING_SEND = 1 << iota
+	TR_PENDING_RECV
+)
+
 type tracker struct {
 	resp chan *http.Response
-	id int
 	noBody bool
+	pending int
 }
 
 type Transport struct {
@@ -310,7 +303,7 @@ type Transport struct {
 	ep *ucx.UcpEp
 	chmap uint64
 	reqs sync.Map
-	quit chan bool
+	quit chan struct{}
 }
 
 func (a *Transport) handleResponse(header unsafe.Pointer, headerSize uint64, data *ucx.UcpAmData, replyEp *ucx.UcpEp) ucx.UcsStatus {
@@ -321,7 +314,8 @@ func (a *Transport) handleResponse(header unsafe.Pointer, headerSize uint64, dat
 	}
 
 	req, _ := a.reqs.Load(reqId)
-	if req.(*tracker).noBody {
+	tr := req.(*tracker)
+	if tr.noBody {
 		reader.left = 0
 	}
 
@@ -331,23 +325,24 @@ func (a *Transport) handleResponse(header unsafe.Pointer, headerSize uint64, dat
 		Status: headerMap["ucx-code"],
 	}
 
+	reader.onClose = func() {
+		a.donePending(tr, TR_PENDING_RECV, reqId)
+	}
+
 	statusCode, _, _ := strings.Cut(resp.Status, " ")
 	resp.StatusCode, _ = strconv.Atoi(statusCode)
 	resp.ContentLength = contentLength
-
-	reader.a = a
-	reader.needPutCh = true
 
 	for k, v := range headerMap {
 		resp.Header.Set(k,v)
 	}
 
-	req.(*tracker).resp <- resp
+	tr.resp <- resp
 	return ucx.UCS_OK
 }
 
 func (a *Transport) Close() {
-	a.quit <- true
+	a.quit <- struct{}{}
 	a.ep.CloseNonBlockingForce(nil)
 	a.context.Close()
 }
@@ -364,7 +359,7 @@ func (a *Transport) progress() {
 func NewTransport(addr string) (*Transport, error) {
 	a := new(Transport)
 	a.Init()
-	a.quit = make(chan bool, 1)
+	a.quit = make(chan struct{})
 	a.chmap = ^uint64(0)
 
 	a.worker.SetAmRecvHandler(AM_RESP, ucx.UCP_AM_FLAG_PERSISTENT_DATA, a.handleResponse)
@@ -387,9 +382,9 @@ func NewTransport(addr string) (*Transport, error) {
 	return a, nil
 }
 
-func getCh(chmap *uint64) (int, bool) {
+func (a *Transport) getCh() (int, bool) {
     for {
-        m := atomic.LoadUint64(chmap)
+        m := atomic.LoadUint64(&a.chmap)
         if m == 0 {
             return -1, false
         }
@@ -397,25 +392,32 @@ func getCh(chmap *uint64) (int, bool) {
         chId := bits.TrailingZeros64(m)
         n := m &^ (uint64(1) << chId)
 
-        if atomic.CompareAndSwapUint64(chmap, m, n) {
+        if atomic.CompareAndSwapUint64(&a.chmap, m, n) {
             return chId, true
         }
     }
 }
 
-func putCh(chmap *uint64, chId int) {
+func (a *Transport) putCh(chId int) {
     for {
-        m := atomic.LoadUint64(chmap)
+        m := atomic.LoadUint64(&a.chmap)
         n := m | (uint64(1) << chId)
 
-        if atomic.CompareAndSwapUint64(chmap, m, n) {
+        if atomic.CompareAndSwapUint64(&a.chmap, m, n) {
             return
         }
     }
 }
 
+func (a *Transport) donePending(tr *tracker, f int, reqId int) {
+	tr.pending &= ^f
+	if tr.pending == 0 {
+		a.putCh(reqId)
+	}
+}
+
 func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	reqId, ok := getCh(&a.chmap)
+	reqId, ok := a.getCh()
 	if !ok {
 		return nil, errors.New("Can't allocate channel")
 	}
@@ -436,9 +438,9 @@ func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	tr := &tracker{
-		resp: make(chan *http.Response, 1),
-		id: reqId,
+		resp: make(chan *http.Response),
 		noBody: req.Method == http.MethodHead,
+		pending: TR_PENDING_RECV,
 	}
 	a.reqs.Store(reqId, tr)
 
@@ -454,7 +456,12 @@ func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Body != nil {
 		data, err := ioutil.ReadAll(req.Body)
 		dataPtr, dataLen := getBuf(data)
-		req, err := a.ep.SendStreamNonBlocking(reqId, dataPtr, dataLen, nil)
+		reqParams := &ucx.UcpRequestParams{}
+		reqParams.SetCallback(func (request *ucx.UcpRequest, status ucx.UcsStatus) {
+			a.donePending(tr, TR_PENDING_SEND, reqId)
+		})
+		tr.pending |= TR_PENDING_SEND
+		req, err := a.ep.SendStreamNonBlocking(reqId, dataPtr, dataLen, reqParams)
 		if err != nil {
 			return nil, err
 		}
