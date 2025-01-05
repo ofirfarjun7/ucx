@@ -7,18 +7,15 @@ package http
 import "C"
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"math/bits"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/openucx/ucx/bindings/go/src/ucx"
@@ -302,7 +299,7 @@ type tracker struct {
 type Transport struct {
 	context
 	ep *ucx.UcpEp
-	chmap uint64
+	chPool chan int
 	reqs sync.Map
 	quit chan struct{}
 }
@@ -361,7 +358,11 @@ func NewTransport(addr string) (*Transport, error) {
 	a := new(Transport)
 	a.Init()
 	a.quit = make(chan struct{})
-	a.chmap = ^uint64(0)
+
+	a.chPool = make(chan int, 64)
+	for chId := 0; chId < 64; chId++ {
+		a.chPool <- chId
+	}
 
 	a.worker.SetAmRecvHandler(AM_RESP, ucx.UCP_AM_FLAG_PERSISTENT_DATA, a.handleResponse)
 
@@ -383,31 +384,12 @@ func NewTransport(addr string) (*Transport, error) {
 	return a, nil
 }
 
-func (a *Transport) getCh() (int, bool) {
-    for {
-        m := atomic.LoadUint64(&a.chmap)
-        if m == 0 {
-            return -1, false
-        }
-
-        chId := bits.TrailingZeros64(m)
-        n := m &^ (uint64(1) << chId)
-
-        if atomic.CompareAndSwapUint64(&a.chmap, m, n) {
-            return chId, true
-        }
-    }
+func (a *Transport) getCh() (int) {
+	return <- a.chPool
 }
 
 func (a *Transport) putCh(chId int) {
-    for {
-        m := atomic.LoadUint64(&a.chmap)
-        n := m | (uint64(1) << chId)
-
-        if atomic.CompareAndSwapUint64(&a.chmap, m, n) {
-            return
-        }
-    }
+	a.chPool <- chId
 }
 
 func (a *Transport) donePending(tr *tracker, f int, reqId int) {
@@ -418,10 +400,7 @@ func (a *Transport) donePending(tr *tracker, f int, reqId int) {
 }
 
 func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	reqId, ok := a.getCh()
-	if !ok {
-		return nil, errors.New("Can't allocate channel")
-	}
+	reqId := a.getCh()
 	headerMap := map[string]string{
 		"ucx-method": req.Method,
 		"ucx-url": req.URL.String(),
