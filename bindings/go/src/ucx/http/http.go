@@ -296,6 +296,7 @@ type tracker struct {
 	resp chan *http.Response
 	noBody bool
 	pending int
+	data []byte
 }
 
 type Transport struct {
@@ -454,8 +455,8 @@ func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	defer send.Close()
 
 	if req.Body != nil {
-		data, err := ioutil.ReadAll(req.Body)
-		dataPtr, dataLen := getBuf(data)
+		tr.data, err = ioutil.ReadAll(req.Body)
+		dataPtr, dataLen := getBuf(tr.data)
 		reqParams := &ucx.UcpRequestParams{}
 		reqParams.SetCallback(func (request *ucx.UcpRequest, status ucx.UcsStatus) {
 			a.donePending(tr, TR_PENDING_SEND, reqId)
