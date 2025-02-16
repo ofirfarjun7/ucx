@@ -125,6 +125,7 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_eager_multi_bcopy_send_func(
     };
     ssize_t packed_size;
     ucs_status_t status;
+    ucs_status_t copy_status;
 
     if (ucp_proto_am_is_first_fragment(req)) {
         pack_ctx.max_payload = ucp_proto_multi_max_payload(
@@ -135,8 +136,13 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_eager_multi_bcopy_send_func(
         packed_size = uct_ep_am_bcopy(uct_ep, UCP_AM_ID_AM_FIRST,
                                       ucp_am_eager_multi_bcopy_pack_args_first,
                                       &pack_ctx, 0);
-        status      = ucp_am_handle_user_header_send_status_common(
-                req, ucp_proto_bcopy_send_func_status(packed_size), 0, 0);
+        status      = ucp_proto_bcopy_send_func_status(packed_size);
+        if (ucs_unlikely(status == UCS_ERR_NO_RESOURCE)) {
+            copy_status = ucp_proto_am_req_copy_header(req);
+            if (ucs_unlikely(copy_status != UCS_OK)) {
+                return copy_status;
+            }
+        }
     } else {
         pack_ctx.max_payload = ucp_proto_multi_max_payload(
                 req, lpriv, UCP_AM_MID_FRAG_META_LEN);
