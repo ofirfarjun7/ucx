@@ -119,7 +119,6 @@ ucp_proto_am_req_copy_header(ucp_request_t *req)
         return UCS_OK;
     }
 
-    ucs_assert(req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_COPY_HEADER);
     user_header = ucs_mpool_set_get_inline(&req->send.ep->worker->am_mps,
                                            req->send.msg_proto.am.header.length);
     if (ucs_unlikely(user_header == NULL)) {
