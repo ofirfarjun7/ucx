@@ -75,12 +75,7 @@ ucp_am_eager_short_proto_progress_common(uct_pending_req_t *self, int is_reply)
                                  am_id, iov, iov_cnt);
     if (ucs_unlikely(status == UCS_ERR_NO_RESOURCE)) {
         req->send.lane = spriv->super.lane; /* for pending add */
-        copy_status    = ucp_proto_am_req_copy_header(req);
-        if (ucs_unlikely(copy_status != UCS_OK)) {
-            ucp_proto_request_abort(req, copy_status);
-            return UCS_OK;
-        }
-
+        status         = ucp_am_handle_user_header_send_status_or_abort(req);
         return status;
     }
 
