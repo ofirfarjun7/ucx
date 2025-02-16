@@ -112,7 +112,9 @@ ucp_proto_am_req_copy_header(ucp_request_t *req)
 {
     void *user_header;
 
-    if ((req->flags & UCP_REQUEST_FLAG_USER_HEADER_COPIED) ||
+    if (ucs_likely(!(req->send.msg_proto.am.flags &
+                     UCP_AM_SEND_FLAG_COPY_HEADER)) ||
+        (req->flags & UCP_REQUEST_FLAG_USER_HEADER_COPIED) ||
         (req->send.msg_proto.am.header.length == 0)) {
         return UCS_OK;
     }
@@ -140,8 +142,7 @@ ucp_am_handle_user_header_send_status_common(ucp_request_t *req,
 {
     ucs_status_t copy_status;
 
-    if (ucs_unlikely(status == UCS_ERR_NO_RESOURCE) &&
-        (req->send.msg_proto.am.flags & UCP_AM_SEND_FLAG_COPY_HEADER)) {
+    if (ucs_unlikely(status == UCS_ERR_NO_RESOURCE)) {
         copy_status = ucp_proto_am_req_copy_header(req);
         if (ucs_unlikely(copy_status != UCS_OK)) {
             if (abort) {
