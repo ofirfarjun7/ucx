@@ -125,7 +125,6 @@ static UCS_F_ALWAYS_INLINE ucs_status_t ucp_am_eager_multi_bcopy_send_func(
     };
     ssize_t packed_size;
     ucs_status_t status;
-    ucs_status_t copy_status;
 
     if (ucp_proto_am_is_first_fragment(req)) {
         pack_ctx.max_payload = ucp_proto_multi_max_payload(
