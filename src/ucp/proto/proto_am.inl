@@ -140,12 +140,14 @@ ucp_am_handle_user_header_send_status_or_abort(ucp_request_t *req,
 {
     ucs_status_t copy_status;
 
-    if (ucs_unlikely(status == UCS_ERR_NO_RESOURCE)) {
-        copy_status = ucp_proto_am_req_copy_header(req);
-        if (ucs_unlikely(copy_status != UCS_OK)) {
-            ucp_proto_request_abort(req, copy_status);
-            return UCS_OK;
-        }
+    if (ucs_likely(status != UCS_ERR_NO_RESOURCE)) {
+        return status;
+    }
+
+    copy_status = ucp_proto_am_req_copy_header(req);
+    if (ucs_unlikely(copy_status != UCS_OK)) {
+        ucp_proto_request_abort(req, copy_status);
+        return UCS_OK;
     }
 
     return status;
@@ -157,13 +159,14 @@ ucp_am_handle_user_header_send_status_or_release(ucp_request_t *req,
 {
     ucs_status_t copy_status;
 
-    if (ucs_unlikely(status == UCS_ERR_NO_RESOURCE)) {
-        copy_status = ucp_proto_am_req_copy_header(req);
-        if (ucs_unlikely(copy_status != UCS_OK)) {
-            return copy_status;
-        }
-    } else {
+    if (ucs_likely(status != UCS_ERR_NO_RESOURCE)) {
         ucp_am_release_user_header(req);
+        return status;
+    }
+
+    copy_status = ucp_proto_am_req_copy_header(req);
+    if (ucs_unlikely(copy_status != UCS_OK)) {
+        return copy_status;
     }
 
     return status;
