@@ -1615,7 +1615,7 @@ static ucs_mpool_ops_t uct_ib_mlx5_dbrec_ops = {
 
 static void uct_ib_mlx5_devx_check_odp(uct_ib_mlx5_md_t *md,
                                        const uct_ib_md_config_t *md_config,
-                                       void *cap)
+                                       void *cap, int *odp_version)
 {
     char out[UCT_IB_MLX5DV_ST_SZ_BYTES(query_hca_cap_out)] = {};
     char in[UCT_IB_MLX5DV_ST_SZ_BYTES(query_hca_cap_in)]   = {};
@@ -1624,7 +1624,6 @@ static void uct_ib_mlx5_devx_check_odp(uct_ib_mlx5_md_t *md,
     const void *odp_cap;
     const char *reason;
     struct ibv_mr *mr;
-    uint8_t version;
 
     if (!uct_ib_md_check_odp_common(&md->super, &reason)) {
         goto no_odp;
@@ -1653,20 +1652,22 @@ static void uct_ib_mlx5_devx_check_odp(uct_ib_mlx5_md_t *md,
 
     if (UCT_IB_MLX5DV_GET(query_hca_cap_out, out,
                           capability.odp_cap.mem_page_fault)) {
-        odp_cap = UCT_IB_MLX5DV_ADDR_OF(
+        odp_cap      = UCT_IB_MLX5DV_ADDR_OF(
                 query_hca_cap_out, out,
                 capability.odp_cap.memory_page_fault_scheme_cap);
-        version = 2;
+        *odp_version = 2;
     } else {
-        if (md_config->devx_objs & UCS_BIT(UCT_IB_DEVX_OBJ_RCQP)) {
+        if ((md_config->ext.odp.force != UCS_CONFIG_ON) &&
+            (md_config->devx_objs &
+             (UCS_BIT(UCT_IB_DEVX_OBJ_RCQP) | UCS_BIT(UCT_IB_DEVX_OBJ_DCI)))) {
             reason = "version 1 is not supported for DevX QP";
             goto no_odp;
         }
 
-        odp_cap = UCT_IB_MLX5DV_ADDR_OF(
+        odp_cap      = UCT_IB_MLX5DV_ADDR_OF(
                 query_hca_cap_out, out,
                 capability.odp_cap.transport_page_fault_scheme_cap);
-        version = 1;
+        *odp_version = 1;
     }
 
     if (!UCT_IB_MLX5DV_GET(odp_scheme_cap, odp_cap, ud_odp_caps.send) ||
@@ -1692,7 +1693,7 @@ static void uct_ib_mlx5_devx_check_odp(uct_ib_mlx5_md_t *md,
         ucs_string_buffer_append_flags(&strb, md->super.reg_nonblock_mem_types,
                                        ucs_memory_type_names);
         ucs_debug("%s: ODP is supported, version %d: memory=%s",
-                  uct_ib_device_name(&md->super.dev), version,
+                  uct_ib_device_name(&md->super.dev), *odp_version,
                   ucs_string_buffer_cstr(&strb));
         ucs_string_buffer_cleanup(&strb);
     }
@@ -1713,6 +1714,7 @@ static void uct_ib_mlx5_devx_check_odp(uct_ib_mlx5_md_t *md,
     return;
 
 no_odp:
+    *odp_version = 0;
     ucs_debug("%s: ODP is disabled because %s",
               uct_ib_device_name(&md->super.dev), reason);
 }
@@ -2168,6 +2170,7 @@ ucs_status_t uct_ib_mlx5_devx_md_open(struct ibv_device *ibv_device,
     ucs_log_level_t log_level;
     ucs_mpool_params_t mp_params;
     int ksm_atomic;
+    int odp_version;
 
     buf = ucs_calloc(1, total_len, "mlx5_devx_buffers");
     if (buf == NULL) {
@@ -2352,7 +2355,7 @@ ucs_status_t uct_ib_mlx5_devx_md_open(struct ibv_device *ibv_device,
 
     uct_ib_mlx5_devx_check_dp_ordering(md, cap, cap_2, dev);
 
-    uct_ib_mlx5_devx_check_odp(md, md_config, cap);
+    uct_ib_mlx5_devx_check_odp(md, md_config, cap, &odp_version);
 
     if (UCT_IB_MLX5DV_GET(cmd_hca_cap, cap, atomic)) {
         int ops = UCT_IB_MLX5_ATOMIC_OPS_CMP_SWAP |
@@ -2429,7 +2432,13 @@ ucs_status_t uct_ib_mlx5_devx_md_open(struct ibv_device *ibv_device,
 
     dev->flags          |= UCT_IB_DEVICE_FLAG_MLX5_PRM;
     md->flags           |= UCT_IB_MLX5_MD_FLAG_DEVX;
-    md->flags           |= UCT_IB_MLX5_MD_FLAGS_DEVX_OBJS(md_config->devx_objs);
+    if ((md_config->ext.odp.force != UCS_CONFIG_ON) || (odp_version != 1)) {
+        printf("Setting with Devx%d %d\n", odp_version, md_config->ext.odp.force);
+        md->flags |= UCT_IB_MLX5_MD_FLAGS_DEVX_OBJS(md_config->devx_objs);
+    } else {
+        printf("Force using ODPv%d %d\n", odp_version, md_config->ext.odp.force);
+    }
+
     md->super.name       = UCT_IB_MD_NAME(mlx5);
     md->super.vhca_id    = vhca_id;
     md->super.uuid       = ucs_generate_uuid((uintptr_t)md);

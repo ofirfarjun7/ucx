@@ -175,6 +175,10 @@ ucs_config_field_t uct_ib_md_config_table[] = {
      "enabled.\n",
      ucs_offsetof(uct_ib_md_config_t, ext.odp.mem_types),
      UCS_CONFIG_TYPE_BITMAP(ucs_memory_type_names)},
+    
+    {"FORCE_ODP", "off",
+     "Force using supported ODP.\n",
+     ucs_offsetof(uct_ib_md_config_t, ext.odp.force), UCS_CONFIG_TYPE_BOOL},
 
     {NULL}
 };

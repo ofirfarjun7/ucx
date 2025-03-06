@@ -5,9 +5,11 @@
 
 package ucx
 
+// #include <stdlib.h>
 // #include <ucp/api/ucp.h>
 // #include <ucs/type/status.h>
 import "C"
+import "unsafe"
 
 // UCP application context (or just a context) is an opaque handle that holds a
 // UCP communication instance's global information. It represents a single UCP
@@ -29,8 +31,31 @@ type UcpContext struct {
 
 func NewUcpContext(contextParams *UcpParams) (*UcpContext, error) {
 	var ucp_context C.ucp_context_h
+	var ucp_config *C.ucp_config_t
 
-	if status := C.ucp_init(&contextParams.params, nil, &ucp_context); status != C.UCS_OK {
+	if status := C.ucp_config_read(nil, nil, &ucp_config); status != C.UCS_OK {
+		return nil, newUcxError(status)
+	}
+
+	defer C.ucp_config_release(ucp_config)
+
+	ib_force_odp_key := C.CString("IB_FORCE_ODP")
+	defer C.free(unsafe.Pointer(ib_force_odp_key))
+	yes_val := C.CString("y")
+	defer C.free(unsafe.Pointer(yes_val))
+
+	if status := C.ucp_config_modify(ucp_config, ib_force_odp_key, yes_val); status != C.UCS_OK {
+		return nil, newUcxError(status)
+	}
+
+	gva_enable_key := C.CString("GVA_ENABLE")
+	defer C.free(unsafe.Pointer(gva_enable_key))
+
+	if status := C.ucp_config_modify(ucp_config, gva_enable_key, yes_val); status != C.UCS_OK {
+		return nil, newUcxError(status)
+	}
+
+	if status := C.ucp_init(&contextParams.params, ucp_config, &ucp_context); status != C.UCS_OK {
 		return nil, newUcxError(status)
 	}
 
