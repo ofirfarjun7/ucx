@@ -123,7 +123,7 @@ func (w *responseWriter) WriteHeader(statusCode int) {
 	headerPtr, headerLen := getBuf(header)
 	_, err = w.ep.SendAmNonBlocking(AM_RESP,
 		headerPtr, headerLen, nil, 0,
-		ucx.UCP_AM_SEND_FLAG_REPLY, nil)
+		ucx.UCP_AM_SEND_FLAG_REPLY | ucx.UCP_AM_SEND_FLAG_COPY_HEADER, nil)
 	if err != nil {
 		return
 	}
@@ -392,9 +392,13 @@ func (a *Transport) putCh(chId int) {
 	a.chPool <- chId
 }
 
+var mu_donePending sync.Mutex
 func (a *Transport) donePending(tr *tracker, f int, reqId int) {
+	mu_donePending.Lock()
+	defer mu_donePending.Unlock()
 	tr.pending &= ^f
 	if tr.pending == 0 {
+		a.reqs.Delete(reqId)
 		a.putCh(reqId)
 	}
 }
@@ -427,7 +431,7 @@ func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	headerPtr, headerLen := getBuf(header)
 	send, err := a.ep.SendAmNonBlocking(AM_REQ,
 		headerPtr, headerLen, nil, 0,
-		ucx.UCP_AM_SEND_FLAG_REPLY, nil)
+		ucx.UCP_AM_SEND_FLAG_REPLY | ucx.UCP_AM_SEND_FLAG_COPY_HEADER, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -438,18 +442,17 @@ func (a *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		dataPtr, dataLen := getBuf(tr.data)
 		reqParams := &ucx.UcpRequestParams{}
 		reqParams.SetCallback(func (request *ucx.UcpRequest, status ucx.UcsStatus) {
+			request.Close()
 			a.donePending(tr, TR_PENDING_SEND, reqId)
 		})
 		tr.pending |= TR_PENDING_SEND
-		req, err := a.ep.SendStreamNonBlocking(reqId, dataPtr, dataLen, reqParams)
+		_, err := a.ep.SendStreamNonBlocking(reqId, dataPtr, dataLen, reqParams)
 		if err != nil {
 			return nil, err
 		}
-		req.Close()
 	}
 
 	resp := <-tr.resp
-	a.reqs.Delete(reqId)
 	return resp, nil
 }
 
