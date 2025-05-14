@@ -291,6 +291,15 @@ gtest_LDADD += \
 endif
 endif
 
+if HAVE_NVCC
+# Add cuda test sources
+gtest_SOURCES += \
+    cuda/hello_cuda.cc
+
+# Link with our CUDA library
+gtest_LDADD += $(top_builddir)/src/cuda/libucx_cuda.la
+endif
+
 noinst_HEADERS = \
 	common/mem_buffer.h \
 	common/test.h \

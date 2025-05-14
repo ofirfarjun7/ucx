@@ -40,3 +40,27 @@ m4_include([test/gtest/ucm/test_dlopen/rpath-subdir/configure.m4])
 m4_include([test/gtest/ucs/test_module/configure.m4])
 AC_DEFINE_UNQUOTED([test_MODULES], ["${test_modules}"], [Test loadable modules])
 AC_CONFIG_FILES([test/gtest/Makefile])
+
+# Add NVCC check
+AC_ARG_WITH([nvcc],
+    AS_HELP_STRING([--with-nvcc], [Enable NVCC compiler support]))
+
+AS_IF([test "x$with_nvcc" != "xno"],
+    [
+    # Look for NVCC compiler
+    AC_PATH_PROG([NVCC], [nvcc], [no])
+    AS_IF([test "x$NVCC" != "xno"],
+        [
+        AC_DEFINE([HAVE_NVCC], [1], [Enable NVCC compiler support])
+        NVCC_FLAGS="-g -G"
+        AC_DEFINE_UNQUOTED([NVCC_PATH], ["$NVCC"], [Path to NVCC compiler])
+        AC_DEFINE_UNQUOTED([NVCC_FLAGS], ["$NVCC_FLAGS"], [NVCC compiler flags])
+        nvcc_happy=yes
+        ],
+        [
+        nvcc_happy=no
+        AS_IF([test "x$with_nvcc" = "xyes"],
+            [AC_MSG_ERROR([NVCC compiler support requested but nvcc not found])])
+        ])
+    ])
+AM_CONDITIONAL([HAVE_NVCC], [test "x$NVCC" != "xno"])

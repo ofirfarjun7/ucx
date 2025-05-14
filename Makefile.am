@@ -40,7 +40,8 @@ SUBDIRS = \
 	src/ucm \
 	src/ucs \
 	src/uct \
-	src/ucp
+	src/ucp \
+	src/cuda
 
 if HAVE_UCG
 SUBDIRS += $(UCG_SUBDIR)
