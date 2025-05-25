@@ -30,6 +30,7 @@ typedef enum {
 typedef enum {
     UCX_PERF_CMD_AM,
     UCX_PERF_CMD_PUT,
+    UCX_PERF_CMD_PUT_BATCH,
     UCX_PERF_CMD_GET,
     UCX_PERF_CMD_ADD,
     UCX_PERF_CMD_FADD,
@@ -44,9 +45,11 @@ typedef enum {
 
 typedef enum {
     UCX_PERF_TEST_TYPE_PINGPONG,         /* Ping-pong mode */
+    UCX_PERF_TEST_TYPE_PINGPONG_GDAKI,   /* Ping-pong mode with GDAKI */
     UCX_PERF_TEST_TYPE_PINGPONG_WAIT_MEM,/* Ping-pong mode with
                                             ucp_worker_wait_mem() */
     UCX_PERF_TEST_TYPE_STREAM_UNI,       /* Unidirectional stream */
+    UCX_PERF_TEST_TYPE_STREAM_UNI_GDAKI, /* Unidirectional stream with GDAKI */
     UCX_PERF_TEST_TYPE_STREAM_BI,        /* Bidirectional stream */
     UCX_PERF_TEST_TYPE_LAST
 } ucx_perf_test_type_t;

@@ -387,6 +387,7 @@ AC_CONFIG_FILES([
                  cmake/ucx-targets.cmake
                  config/Makefile
                  src/cuda/Makefile
+                 src/tools/perf/gda-ki/Makefile
                  ])
 
 AC_CONFIG_FILES([test/mpi/run_mpi.sh], [chmod a+x test/mpi/run_mpi.sh])

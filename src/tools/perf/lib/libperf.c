@@ -877,6 +877,7 @@ static ucs_status_t ucp_perf_test_fill_params(ucx_perf_params_t *params,
     message_size = ucx_perf_get_message_size(params);
     switch (params->command) {
     case UCX_PERF_CMD_PUT:
+    case UCX_PERF_CMD_PUT_BATCH:
     case UCX_PERF_CMD_GET:
         ucp_params->features |= UCP_FEATURE_RMA;
         break;

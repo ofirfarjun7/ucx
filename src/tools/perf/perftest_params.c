@@ -63,7 +63,7 @@ static void usage(const struct perftest_context *ctx, const char *program)
     printf("  Common options:\n");
     printf("     -t <test>      test to run:\n");
     for (test = tests; test->name; ++test) {
-        printf("    %13s - %s %s\n", test->name,
+        printf("    %23s - %s %s\n", test->name,
                api_names[test->api], test->desc);
     }
     printf("\n");

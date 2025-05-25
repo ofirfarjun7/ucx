@@ -7,6 +7,9 @@
 #
 # See file LICENSE for terms.
 #
+if HAVE_NVCC
+SUBDIRS = ../gda-ki
+endif
 
 noinst_LTLIBRARIES     = libucxperf.la
 libucxperf_la_CPPFLAGS = $(BASE_CPPFLAGS)
@@ -30,3 +33,8 @@ libucxperf_la_SOURCES = \
 	libperf_thread.c \
 	uct_tests.cc \
 	ucp_tests.cc
+
+if HAVE_NVCC
+# Link with our GDA-KI library
+libucxperf_la_LIBADD += $(abs_top_builddir)/src/tools/perf/gda-ki/libperf_gdaki.la
+endif
