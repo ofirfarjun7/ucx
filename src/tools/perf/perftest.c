@@ -34,6 +34,9 @@ test_type_t tests[] = {
 
     {"put_lat", UCX_PERF_API_UCT, UCX_PERF_CMD_PUT, UCX_PERF_TEST_TYPE_PINGPONG,
      "put latency", "latency", 1},
+    
+    {"put_lat_gdaki", UCX_PERF_API_UCT, UCX_PERF_CMD_PUT, UCX_PERF_TEST_TYPE_PINGPONG_GDAKI,
+     "put latency using gdaki", "latency", 1},
 
     {"add_lat", UCX_PERF_API_UCT, UCX_PERF_CMD_ADD, UCX_PERF_TEST_TYPE_PINGPONG,
      "atomic add latency", "latency", 1},
@@ -55,6 +58,9 @@ test_type_t tests[] = {
 
     {"put_bw", UCX_PERF_API_UCT, UCX_PERF_CMD_PUT, UCX_PERF_TEST_TYPE_STREAM_UNI,
      "put bandwidth / message rate", "overhead", 32},
+    
+    {"put_bw_gdaki", UCX_PERF_API_UCT, UCX_PERF_CMD_PUT, UCX_PERF_TEST_TYPE_STREAM_UNI_GDAKI,
+     "put bandwidth / message rate using gdaki", "overhead", 32},
 
     {"get_bw", UCX_PERF_API_UCT, UCX_PERF_CMD_GET, UCX_PERF_TEST_TYPE_STREAM_UNI,
      "get bandwidth / message rate", "overhead", 32},

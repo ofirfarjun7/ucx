@@ -19,6 +19,7 @@
 #include "libperf_int.h"
 
 #include <limits>
+#include <tools/perf/gda-ki/gdaki_benchmark.h>
 
 
 template <ucx_perf_cmd_t CMD, ucx_perf_test_type_t TYPE, uct_perf_data_layout_t DATA, bool ONESIDED>
@@ -637,6 +638,13 @@ public:
         }
     }
 
+
+    ucs_status_t run_stream_req_uni_gdaki()
+    {
+        launch_bw_test();
+        return UCS_OK;
+    }
+
     ucs_status_t run_stream_req_uni(bool flow_control, bool send_window,
                                     bool direction_to_responder)
     {
@@ -744,6 +752,15 @@ public:
             default:
                 return UCS_ERR_INVALID_PARAM;
             }
+        case UCX_PERF_TEST_TYPE_STREAM_UNI_GDAKI:
+            switch (CMD) {
+            case UCX_PERF_CMD_PUT:
+                return run_stream_req_uni_gdaki();
+            case UCX_PERF_CMD_GET:
+                return run_stream_req_uni_gdaki();
+            default:
+                return UCS_ERR_INVALID_PARAM;
+            }
         case UCX_PERF_TEST_TYPE_STREAM_BI:
         default:
             return UCS_ERR_INVALID_PARAM;
@@ -792,16 +809,18 @@ private:
 #define DISPATCH_FUNC_ENTRY(_case, _cmd, _type) uct_perf_dispatch_##_case,
 
 #define ITERATE_TEST_CASES(_macro) \
-    _macro(pingpong_am,     UCX_PERF_CMD_AM,    UCX_PERF_TEST_TYPE_PINGPONG)   \
-    _macro(pingpong_put,    UCX_PERF_CMD_PUT,   UCX_PERF_TEST_TYPE_PINGPONG)   \
-    _macro(pingpong_add,    UCX_PERF_CMD_ADD,   UCX_PERF_TEST_TYPE_PINGPONG)   \
-    _macro(stream_uni_am,   UCX_PERF_CMD_AM,    UCX_PERF_TEST_TYPE_STREAM_UNI) \
-    _macro(stream_uni_put,  UCX_PERF_CMD_PUT,   UCX_PERF_TEST_TYPE_STREAM_UNI) \
-    _macro(stream_uni_get,  UCX_PERF_CMD_GET,   UCX_PERF_TEST_TYPE_STREAM_UNI) \
-    _macro(stream_uni_add,  UCX_PERF_CMD_ADD,   UCX_PERF_TEST_TYPE_STREAM_UNI) \
-    _macro(stream_uni_fadd, UCX_PERF_CMD_FADD,  UCX_PERF_TEST_TYPE_STREAM_UNI) \
-    _macro(stream_uni_swap, UCX_PERF_CMD_SWAP,  UCX_PERF_TEST_TYPE_STREAM_UNI) \
-    _macro(stream_uni_cswap,UCX_PERF_CMD_CSWAP, UCX_PERF_TEST_TYPE_STREAM_UNI)
+    _macro(pingpong_am,         UCX_PERF_CMD_AM,    UCX_PERF_TEST_TYPE_PINGPONG)   \
+    _macro(pingpong_put,        UCX_PERF_CMD_PUT,   UCX_PERF_TEST_TYPE_PINGPONG)   \
+    _macro(pingpong_add,        UCX_PERF_CMD_ADD,   UCX_PERF_TEST_TYPE_PINGPONG)   \
+    _macro(stream_uni_am,       UCX_PERF_CMD_AM,    UCX_PERF_TEST_TYPE_STREAM_UNI) \
+    _macro(stream_uni_put,      UCX_PERF_CMD_PUT,   UCX_PERF_TEST_TYPE_STREAM_UNI) \
+    _macro(stream_uni_get,      UCX_PERF_CMD_GET,   UCX_PERF_TEST_TYPE_STREAM_UNI) \
+    _macro(stream_uni_add,      UCX_PERF_CMD_ADD,   UCX_PERF_TEST_TYPE_STREAM_UNI) \
+    _macro(stream_uni_fadd,     UCX_PERF_CMD_FADD,  UCX_PERF_TEST_TYPE_STREAM_UNI) \
+    _macro(stream_uni_swap,     UCX_PERF_CMD_SWAP,  UCX_PERF_TEST_TYPE_STREAM_UNI) \
+    _macro(stream_uni_cswap,    UCX_PERF_CMD_CSWAP, UCX_PERF_TEST_TYPE_STREAM_UNI) \
+    _macro(stream_uni_put_gdaki,UCX_PERF_CMD_PUT,   UCX_PERF_TEST_TYPE_STREAM_UNI_GDAKI) \
+    _macro(stream_uni_get_gdaki,UCX_PERF_CMD_GET,   UCX_PERF_TEST_TYPE_STREAM_UNI_GDAKI)
 
 ITERATE_TEST_CASES(DEFINE_DISPATCH_FUNC)
 
