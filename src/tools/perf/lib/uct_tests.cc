@@ -641,7 +641,8 @@ public:
 
     ucs_status_t run_stream_req_uni_gdaki()
     {
-        launch_bw_test();
+        ucx_perf_context_cuda_t *ctx = NULL;
+        launch_bw_test(ctx);
         return UCS_OK;
     }
 

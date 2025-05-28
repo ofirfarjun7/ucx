@@ -11,6 +11,7 @@ lib_LTLIBRARIES = libperf_gdaki.la
 # Library sources
 libperf_gdaki_la_SOURCES = \
     gdaki_benchmark.h \
+    libperf_cuda.h \
     bw_benchmark.cu \
     lat_benchmark.cu
 

@@ -1,13 +1,15 @@
 #ifndef GDAKI_BENCHMARK_H
 #define GDAKI_BENCHMARK_H
 
+#include "libperf_cuda.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 // C wrapper function to launch the kernel
-void launch_bw_test(void);
-void launch_lat_test(void);
+void launch_bw_test(ucx_perf_context_cuda_t *ctx);
+void launch_lat_test(ucx_perf_context_cuda_t *ctx);
 #ifdef __cplusplus
 }
 #endif

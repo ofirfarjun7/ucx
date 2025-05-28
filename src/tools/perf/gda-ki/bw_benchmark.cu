@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include "libperf_cuda.h"
+
 typedef unsigned long   ucs_time_t;
 typedef uint64_t ucx_perf_counter_t;
 
@@ -23,48 +25,29 @@ struct gdaki_perf_context {
 };
 
 // Implementation of device function
-__device__ void uct_post_batch(
-    void *qp,
-    uint32_t batch_length,
-    uint8_t **src_buf,
-    uint32_t *size,
-    uint32_t *src_mkey,
-    uint8_t **dst_buf,
-    uint32_t *dst_mkey) {
+__device__ void uct_post_batch(uct_gdaki_packed_batch_t *batch) {
     printf("GDAKI post batch dummy on block %d, thread %d!\n", 
            blockIdx.x, threadIdx.x);
 }
 
 // TODO: Add qp and cq etc
-__global__ void run_bw_test(
-    void *qp,
-	uint32_t send_window_size,
-	uint32_t num_iters,
-	uint32_t batch_length,
-	uint8_t **src_buf,
-	uint32_t *size,
-	uint32_t *src_mkey,
-	uint8_t **dst_buf,
-	uint32_t *dst_mkey)
+__global__ void run_bw_test(ucx_perf_context_cuda_t *ctx)
 {
 
     // TODO: Initialize metrices
-    struct gdaki_perf_context *ctx = NULL;
     uint32_t m_sends_outstanding = 0;
 
-	for (uint32_t idx = 0; idx < num_iters; idx ++) {
+	for (uint32_t idx = 0; idx < ctx->params.max_iter; idx ++) {
 
-		while (m_sends_outstanding > send_window_size) {
+		while (m_sends_outstanding > ctx->params.max_outstanding) {
 			// TODO: Progress and wait for completion of outstanding batches
 		}
 
 		// Call to new gdaki kernel
-		uct_post_batch(qp, batch_length, src_buf, size, src_mkey, dst_buf, dst_mkey);
+		uct_post_batch(ctx->params.batch);
 
-		// TODO: update m_sends_outstanding and update metrices
         if (threadIdx.x == 0) {
-            if (ctx == NULL) {
-            }
+		    // TODO: update m_sends_outstanding, metrices and notify CPU
         }
 	}
 
@@ -72,16 +55,7 @@ __global__ void run_bw_test(
 }
 
 // C wrapper function implementation
-extern "C" void launch_bw_test(
-    void *qp,
-    uint32_t send_window_size,
-    uint32_t num_iters,
-    uint32_t batch_length,
-    uint8_t **src_buf,
-    uint32_t *size,
-    uint32_t *src_mkey,
-    uint8_t **dst_buf,
-    uint32_t *dst_mkey) {
+extern "C" void launch_bw_test(ucx_perf_context_cuda_t *ctx) {
 
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
@@ -90,7 +64,7 @@ extern "C" void launch_bw_test(
         return;
     }
 
-    run_bw_test<<<1, 1>>>(qp, send_window_size, num_iters, batch_length, src_buf, size, src_mkey, dst_buf, dst_mkey);
+    run_bw_test<<<1, 1>>>(ctx);
     
     err = cudaDeviceSynchronize();
     if (err != cudaSuccess) {
