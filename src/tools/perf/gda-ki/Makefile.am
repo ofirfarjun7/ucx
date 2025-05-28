@@ -38,4 +38,4 @@ libperf_gdaki_la_LIBADD = -lcuda -lcudart -lstdc++
 # Make sure wrapper script is executable
 EXTRA_DIST = gdaki_benchmark.h bw_benchmark.cu lat_benchmark.cu nvcc_wrap.sh
 
-endif # HAVE_NVCC 
+endif # HAVE_NVCC

@@ -33,4 +33,4 @@ fi
 mkdir -p $(dirname "$output")
 
 # Call NVCC
-/hpc/local/oss/cuda12.4.0/redhat8/bin/nvcc -Xcompiler "-fPIC" $NVCC_FLAGS -c "$src" -o "$output" 
+/hpc/local/oss/cuda12.4.0/redhat8/bin/nvcc -Xcompiler "-fPIC" $NVCC_FLAGS -c "$src" -o "$output"
