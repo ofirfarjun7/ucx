@@ -33,13 +33,9 @@ __device__ void uct_post_batch(uct_gdaki_packed_batch_t *batch) {
 // TODO: Add qp and cq etc
 __global__ void run_bw_test(ucx_perf_context_cuda_t *ctx)
 {
-
-    // TODO: Initialize metrices
-    uint32_t m_sends_outstanding = 0;
-
 	for (uint32_t idx = 0; idx < ctx->params.max_iter; idx ++) {
 
-		while (m_sends_outstanding > ctx->params.max_outstanding) {
+		while (ctx->params.m_sends_outstanding > ctx->params.max_outstanding) {
 			// TODO: Progress and wait for completion of outstanding batches
 		}
 
@@ -47,8 +43,11 @@ __global__ void run_bw_test(ucx_perf_context_cuda_t *ctx)
 		uct_post_batch(ctx->params.batch);
 
         if (threadIdx.x == 0) {
+            ctx->params.m_sends_outstanding++;
 		    // TODO: update m_sends_outstanding, metrices and notify CPU
         }
+
+        __syncthreads();
 	}
 
     __syncthreads();
@@ -56,6 +55,8 @@ __global__ void run_bw_test(ucx_perf_context_cuda_t *ctx)
 
 // C wrapper function implementation
 extern "C" void launch_bw_test(ucx_perf_context_cuda_t *ctx) {
+
+    // TODO: Initialize measurement metrics
 
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {

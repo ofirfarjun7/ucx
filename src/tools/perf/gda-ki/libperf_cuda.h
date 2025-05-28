@@ -22,9 +22,10 @@ typedef struct uct_gdaki_packed_batch {
 typedef struct ucx_perf_params_cuda {
     uct_gdaki_packed_batch_t* batch;
     unsigned                  max_outstanding; /* Maximal number of outstanding sends */
-    uint64_t        warmup_iter;     /* Number of warm-up iterations */
+    unsigned                  m_sends_outstanding;
+    uint64_t                  warmup_iter;     /* Number of warm-up iterations */
     double                    warmup_time;     /* Approximately how long to warm-up */
-    uint64_t        max_iter;        /* Iterations limit, 0 - unlimited */
+    uint64_t                  max_iter;        /* Iterations limit, 0 - unlimited */
     double                    max_time;        /* Time limit (seconds), 0 - unlimited */
     double                    report_interval; /* Interval at which to call the report callback */
     double                    percentile_rank; /* The percentile rank of the percentile reported
@@ -36,22 +37,22 @@ typedef struct ucx_perf_context_cuda {
 
     /* Measurements */
     double                       start_time_acc;  /* accurate start time */
-    unsigned long                   end_time;        /* inaccurate end time (upper bound) */
-    unsigned long                   prev_time;       /* time of previous iteration */
-    unsigned long                   report_interval; /* interval of showing report */
-    uint64_t           last_report;     /* last report to CPU */
-    uint64_t           max_iter;
+    unsigned long                end_time;        /* inaccurate end time (upper bound) */
+    unsigned long                prev_time;       /* time of previous iteration */
+    unsigned long                report_interval; /* interval of showing report */
+    uint64_t                     last_report;     /* last report to CPU */
+    uint64_t                     max_iter;
 
     /* Measurements of current/previous **report** */
     struct {
-        uint64_t       msgs;    /* number of messages */
-        uint64_t       bytes;   /* number of bytes */
-        uint64_t       iters;   /* number of iterations */
-        unsigned long               time;    /* inaccurate time (for median and report interval) */
+        uint64_t                 msgs;    /* number of messages */
+        uint64_t                 bytes;   /* number of bytes */
+        uint64_t                 iters;   /* number of iterations */
+        unsigned long            time;    /* inaccurate time (for median and report interval) */
         double                   time_acc; /* accurate time (for avg latency/bw/msgrate) */
     } current, prev;
 
-    unsigned long                   timing_queue[TIMING_QUEUE_SIZE];
+    unsigned long                timing_queue[TIMING_QUEUE_SIZE];
     unsigned                     timing_queue_head;
 } ucx_perf_context_cuda_t;
 
