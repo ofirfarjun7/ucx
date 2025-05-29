@@ -12,6 +12,8 @@ lib_LTLIBRARIES = libperf_gdaki.la
 libperf_gdaki_la_SOURCES = \
     gdaki_benchmark.h \
     libperf_cuda.h \
+    gdaki_mem_handle.h \
+    gdaki_mem_handle.cu \
     bw_benchmark.cu \
     lat_benchmark.cu
 
@@ -26,16 +28,17 @@ NVCC_WRAP = $(srcdir)/nvcc_wrap.sh
 	$(LIBTOOL) --tag=CXX --mode=compile $(NVCC_WRAP) -c $< -o $@
 
 # Library version info (major:minor:revision)
-libperf_gdaki_la_LDFLAGS = -version-info 0:0:0
+libperf_gdaki_la_LDFLAGS = -version-info 0:0:0 $(GDR_COPY_LDFLAGS)
 
 # Include paths
 libperf_gdaki_la_CPPFLAGS = \
-    -I$(top_srcdir)/src
+    -I$(top_srcdir)/src \
+    $(GDR_COPY_CPPFLAGS)
 
-# Link with CUDA runtime and C++ standard library
-libperf_gdaki_la_LIBADD = -lcuda -lcudart -lstdc++
+# Link with CUDA runtime, GDRcopy and C++ standard library
+libperf_gdaki_la_LIBADD = -lcuda -lcudart $(GDR_COPY_LIBS) -lstdc++
 
 # Make sure wrapper script is executable
-EXTRA_DIST = gdaki_benchmark.h bw_benchmark.cu lat_benchmark.cu nvcc_wrap.sh
+EXTRA_DIST = gdaki_benchmark.h gdaki_mem_handle.h gdaki_mem_handle.cu bw_benchmark.cu lat_benchmark.cu nvcc_wrap.sh
 
 endif # HAVE_NVCC

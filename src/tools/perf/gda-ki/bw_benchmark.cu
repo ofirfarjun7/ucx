@@ -4,6 +4,7 @@
 #include <gdrapi.h>
 
 #include "libperf_cuda.h"
+#include "gdaki_mem_handle.h"
 
 // Implementation of device function
 __device__ void uct_post_batch(uct_gdaki_packed_batch_t *batch) {
@@ -64,35 +65,61 @@ __global__ void run_bw_test(ucx_perf_context_cuda_t *ctx)
 }
 
 // C wrapper function implementation
+// TODO: pass struct with test parameters.
 extern "C" void launch_bw_test() {
     // TODO: Initialize measurement metrics
-    ucx_perf_context_cuda_t *ctx;
-    cudaMallocManaged(&ctx, sizeof(ucx_perf_context_cuda_t));
     ucx_perf_cuda_result_t result = {0};
+    gdaki_mem_handle_t mem_handle = NULL;
+    ucx_perf_context_cuda_t *gpu_ctx = NULL;
+    ucx_perf_context_cuda_t *cpu_ctx;
+    ucx_perf_cuda_time_t poll_interval;
+
+    mem_handle = gdaki_mem_create(NULL, sizeof(ucx_perf_context_cuda_t));
+    if (!mem_handle) {
+        printf("Failed to create GDRcopy memory handle using managed memory\n");
+        cudaMallocManaged(&gpu_ctx, sizeof(ucx_perf_context_cuda_t));
+        cpu_ctx = gpu_ctx;
+    } else {
+        cpu_ctx = (ucx_perf_context_cuda_t*)gdaki_mem_get_ptr(mem_handle);
+        gpu_ctx = (ucx_perf_context_cuda_t*)gdaki_mem_get_gpu_ptr(mem_handle);
+    }
+
+    //TODO: Initialize context test parameters.
 
     // Launch kernel asynchronously
-    run_bw_test<<<1, 1, 0, cudaStreamPerThread>>>(ctx);
+    run_bw_test<<<1, 1>>>(gpu_ctx);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "Kernel launch failed: %s\n", cudaGetErrorString(err));
+        goto cleanup;
+    }
 
-
-    while (!ctx->test_completed) {
+    poll_interval = cpu_ctx->params.report_interval / 10;
+    while (!cpu_ctx->test_completed) {
         // Check if GPU has new results ready
-        if (ctx->results_ready) {
+        if (cpu_ctx->results_ready) {
             // Read from inactive buffer (opposite of GPU's active buffer)
-            int read_buf = 1 - ctx->active_buffer;
-            ucx_perf_calc_cuda_result(ctx, read_buf, &result);
+            int read_buf = 1 - cpu_ctx->active_buffer;
+            ucx_perf_calc_cuda_result(cpu_ctx, read_buf, &result);
             ucx_perf_cuda_report(&result);
-
             // Clear the ready flag after processing
-            ctx->results_ready = 0;
+            cpu_ctx->results_ready = 0;
         }
-        usleep(1000); // Small sleep to prevent busy-waiting
+        usleep(poll_interval); // Small sleep to prevent busy-waiting
     }
     
     printf("\nFinal Results:\n");
-    printf("Total messages: %lu\n", ctx->max_iter);
+    printf("Total messages: %lu\n", cpu_ctx->max_iter);
     printf("Total bytes: %lu\n", result.bytes);
     printf("Total time: %.3f seconds\n", result.elapsed_time);
     printf("Average bandwidth: %.2f Gbps\n", result.bandwidth.total_average);
     printf("Average latency: %.3f ns\n", result.latency.total_average);
     printf("Average message rate: %.2f Mps\n", result.msgrate.total_average);
+
+cleanup:
+    if (mem_handle) {
+        gdaki_mem_destroy(mem_handle);
+    } else if (gpu_ctx) {
+        cudaFree(gpu_ctx);
+    }
 }
