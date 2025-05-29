@@ -934,17 +934,15 @@ public:
 
     ucs_status_t run_pingpong_gdaki()
     {
-        ucx_perf_context_cuda_t *ctx = NULL;
         printf("run_pingpong_gdaki\n");
-        launch_lat_test(ctx);
+        launch_lat_test();
         return UCS_OK;
     }
 
     ucs_status_t run_stream_uni_gdaki()
     {
-        ucx_perf_context_cuda_t *ctx = NULL;
         printf("run_stream_uni_gdaki\n");
-        launch_bw_test(ctx);
+        launch_bw_test();
         return UCS_OK;
     }
 

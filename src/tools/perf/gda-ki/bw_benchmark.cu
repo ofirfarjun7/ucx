@@ -54,18 +54,18 @@ __global__ void run_bw_test(ucx_perf_context_cuda_t *ctx)
 }
 
 // C wrapper function implementation
-extern "C" void launch_bw_test(ucx_perf_context_cuda_t *ctx) {
+extern "C" void launch_bw_test() {
 
     // TODO: Initialize measurement metrics
+    ucx_perf_context_cuda_t *ctx = cudaMallocManaged(&ctx, sizeof(ucx_perf_context_cuda_t));
 
+    run_bw_test<<<1, 1>>>(ctx);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         fprintf(stderr, "Kernel launch failed: %s\n", 
                 cudaGetErrorString(err));
         return;
     }
-
-    run_bw_test<<<1, 1>>>(ctx);
     
     err = cudaDeviceSynchronize();
     if (err != cudaSuccess) {
