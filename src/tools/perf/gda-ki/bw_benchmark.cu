@@ -1,28 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <unistd.h>
+#include <gdrapi.h>
 
 #include "libperf_cuda.h"
-
-typedef unsigned long   ucs_time_t;
-typedef uint64_t ucx_perf_counter_t;
-
-struct gdaki_perf_context {
-    /* Measurements */
-    double                       start_time_acc;  /* accurate start time */
-    ucs_time_t                   end_time;        /* inaccurate end time (upper bound) */
-    ucs_time_t                   prev_time;       /* time of previous iteration */
-    ucs_time_t                   report_interval; /* interval of showing report */
-    ucx_perf_counter_t           max_iter;
-
-    /* Measurements of current/previous **report** */
-    struct {
-        ucx_perf_counter_t       msgs;    /* number of messages */
-        ucx_perf_counter_t       bytes;   /* number of bytes */
-        ucx_perf_counter_t       iters;   /* number of iterations */
-        ucs_time_t               time;    /* inaccurate time (for median and report interval) */
-        double                   time_acc; /* accurate time (for avg latency/bw/msgrate) */
-    } current, prev;
-};
 
 // Implementation of device function
 __device__ void uct_post_batch(uct_gdaki_packed_batch_t *batch) {
@@ -33,44 +14,85 @@ __device__ void uct_post_batch(uct_gdaki_packed_batch_t *batch) {
 // TODO: Add qp and cq etc
 __global__ void run_bw_test(ucx_perf_context_cuda_t *ctx)
 {
-	for (uint32_t idx = 0; idx < ctx->params.max_iter; idx ++) {
+    ucx_perf_cuda_time_t next_report_time;
 
-		while (ctx->params.m_sends_outstanding > ctx->params.max_outstanding) {
-			// TODO: Progress and wait for completion of outstanding batches
-		}
+    if (threadIdx.x == 0) {
+        ctx->start_time = gdaki_get_time_ns();
+        ctx->test_completed = 0;
+        ctx->results_ready = 0;
+        ctx->active_buffer = 0;
+        memset((void*)&ctx->current[0], 0, sizeof(ctx->current[0]));
+        memset((void*)&ctx->current[1], 0, sizeof(ctx->current[1]));
+        memset((void*)&ctx->prev[0], 0, sizeof(ctx->prev[0]));
+        memset((void*)&ctx->prev[1], 0, sizeof(ctx->prev[1]));
+        next_report_time = gdaki_get_time_ns() + ctx->params.report_interval;
+    }
+    __syncthreads();
 
-		// Call to new gdaki kernel
-		uct_post_batch(ctx->params.batch);
+    for (uint32_t idx = 0; idx < ctx->max_iter; idx++) {
+        while (ctx->params.m_sends_outstanding > ctx->params.max_outstanding) {
+            // TODO: Progress and wait for completion of outstanding batches
+        }
+
+        // Call to new gdaki kernel
+        uct_post_batch(ctx->params.batch);
 
         if (threadIdx.x == 0) {
             ctx->params.m_sends_outstanding++;
-		    // TODO: update m_sends_outstanding, metrices and notify CPU
+            // Update current buffer metrics
+            ucx_perf_cuda_update(ctx, 1, ctx->params.batch->batch_total_size);
+
+            // Check if it's time to report
+            ucx_perf_cuda_time_t current_time = gdaki_get_time_ns();
+            if (current_time >= next_report_time) {
+                // Switch to other buffer
+                ctx->active_buffer ^= 1;
+                // Signal CPU to calculate and print
+                ctx->results_ready = 1;
+                // Set next report time
+                next_report_time = current_time + ctx->params.report_interval;
+            }
         }
 
         __syncthreads();
-	}
+    }
 
-    __syncthreads();
+    if (threadIdx.x == 0) {
+        ctx->end_time = gdaki_get_time_ns();
+        ctx->test_completed = 1;
+    }
 }
 
 // C wrapper function implementation
 extern "C" void launch_bw_test() {
-
     // TODO: Initialize measurement metrics
-    ucx_perf_context_cuda_t *ctx = cudaMallocManaged(&ctx, sizeof(ucx_perf_context_cuda_t));
+    ucx_perf_context_cuda_t *ctx;
+    cudaMallocManaged(&ctx, sizeof(ucx_perf_context_cuda_t));
+    ucx_perf_cuda_result_t result = {0};
 
-    run_bw_test<<<1, 1>>>(ctx);
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Kernel launch failed: %s\n", 
-                cudaGetErrorString(err));
-        return;
+    // Launch kernel asynchronously
+    run_bw_test<<<1, 1, 0, cudaStreamPerThread>>>(ctx);
+
+
+    while (!ctx->test_completed) {
+        // Check if GPU has new results ready
+        if (ctx->results_ready) {
+            // Read from inactive buffer (opposite of GPU's active buffer)
+            int read_buf = 1 - ctx->active_buffer;
+            ucx_perf_calc_cuda_result(ctx, read_buf, &result);
+            ucx_perf_cuda_report(&result);
+
+            // Clear the ready flag after processing
+            ctx->results_ready = 0;
+        }
+        usleep(1000); // Small sleep to prevent busy-waiting
     }
     
-    err = cudaDeviceSynchronize();
-    if (err != cudaSuccess) {
-        fprintf(stderr, "Kernel execution failed: %s\n", 
-                cudaGetErrorString(err));
-        return;
-    }
+    printf("\nFinal Results:\n");
+    printf("Total messages: %lu\n", ctx->max_iter);
+    printf("Total bytes: %lu\n", result.bytes);
+    printf("Total time: %.3f seconds\n", result.elapsed_time);
+    printf("Average bandwidth: %.2f Gbps\n", result.bandwidth.total_average);
+    printf("Average latency: %.3f ns\n", result.latency.total_average);
+    printf("Average message rate: %.2f Mps\n", result.msgrate.total_average);
 }
