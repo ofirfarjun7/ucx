@@ -109,6 +109,7 @@ int uct_cuda_copy_md_is_dmabuf_supported()
 
     ucs_debug("dmabuf is%s supported on cuda device %d",
               dmabuf_supported ? "" : " not", cuda_device);
+    printf("@@@@ cuda_copy dmabuf_supported is %d on cuda device %d\n", dmabuf_supported, cuda_device);
     return dmabuf_supported;
 }
 
