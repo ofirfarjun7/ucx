@@ -203,7 +203,7 @@ static int uct_gdaki_is_dmabuf_supported(const uct_ib_md_t *md)
         dmabuf_supported = 1;
     }
 
-    printf("@@@@ dmabuf_supported is %d and UCT_MD_FLAG_REG_DMABUF is %d \n", dmabuf_supported, md->cap_flags & UCT_MD_FLAG_REG_DMABUF);
+    printf("@@@@ dmabuf_supported is %d and UCT_MD_FLAG_REG_DMABUF is %ld \n", dmabuf_supported, md->cap_flags & UCT_MD_FLAG_REG_DMABUF);
 
     return dmabuf_supported;
 }
