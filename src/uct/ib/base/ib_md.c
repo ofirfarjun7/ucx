@@ -1239,10 +1239,13 @@ static void uct_ib_md_check_dmabuf(uct_ib_md_t *md)
                            UCT_IB_MEM_ACCESS_FLAGS);
     if (mr != NULL) {
         ibv_dereg_mr(mr);
+        printf("@@@@ dmabuf is supported 1\n");
         /* dmabuf is supported */
     } else if (errno == EBADF) {
+        printf("@@@@ dmabuf is supported 2\n");
         /* dmabuf is supported */
     } else {
+        printf("@@@@ dmabuf is not supported 3\n");
         /* Error code is not bad-fd, which means dmabuf registration is not
            supported by the driver */
         ucs_debug("%s: ibv_reg_dmabuf_mr(fd=%d) returned %m, dmabuf is not "
@@ -1330,6 +1333,7 @@ ucs_status_t uct_ib_md_open_common(uct_ib_md_t *md,
 
     /* Check for GPU-direct support */
     if (md_config->enable_gpudirect_rdma != UCS_NO) {
+        printf("@@@@ enable_gpudirect_rdma is enabled\n");
         /* Check peer memory driver is loaded, different driver versions use
          * different paths */
         uct_ib_check_gpudirect_driver(
