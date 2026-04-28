@@ -190,7 +190,7 @@ static int uct_gdaki_is_dmabuf_supported(const uct_ib_md_t *md)
     }
 
     if (!(md->cap_flags & UCT_MD_FLAG_REG_DMABUF)) {
-        printf("@@@@ IB doesn't support DMA-BUF by UCT_MD_FLAG_REG_DMABUF\n");
+        printf("@@@@ IB doesn't support DMA-BUF by UCT_MD_FLAG_REG_DMABUF %ld\n", md->cap_flags & UCT_MD_FLAG_REG_DMABUF);
         dmabuf_supported = 0;
         ucs_log(loglevel, "IB doesn't support DMA-BUF");
     } else if (!uct_cuda_copy_md_is_dmabuf_supported()) {
@@ -203,7 +203,8 @@ static int uct_gdaki_is_dmabuf_supported(const uct_ib_md_t *md)
         dmabuf_supported = 1;
     }
 
-    printf("@@@@ dmabuf_supported is %d and UCT_MD_FLAG_REG_DMABUF is %ld \n", dmabuf_supported, md->cap_flags & UCT_MD_FLAG_REG_DMABUF);
+    printf("@@@@ dmabuf_supported is %d and UCT_MD_FLAG_REG_DMABUF is %ld \n",
+        dmabuf_supported, md->cap_flags & UCT_MD_FLAG_REG_DMABUF);
 
     return dmabuf_supported;
 }
