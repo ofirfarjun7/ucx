@@ -104,6 +104,9 @@ if [ $opt_binrpm -eq 1 ]; then
 	}
 
 	with_args=""
+	if [ "${have_gda}" != yes ]; then
+		with_args+=" --without gda"
+	fi
 	with_args+=" $(with_arg cma)"
 	with_args+=" $(with_arg cuda)"
 	with_args+=" $(with_arg gdrcopy)"

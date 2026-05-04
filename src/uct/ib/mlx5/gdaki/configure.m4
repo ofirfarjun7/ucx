@@ -16,5 +16,7 @@ AS_IF([test "x$gda_happy" = "xyes"],
       [uct_ib_mlx5_modules="${uct_ib_mlx5_modules}:gda"])
 
 AM_CONDITIONAL([HAVE_GDA], [test "x$gda_happy" != "xno"])
+rpm_have_gda=$gda_happy
+AC_SUBST([rpm_have_gda])
 AC_CONFIG_FILES([src/uct/ib/mlx5/gdaki/Makefile
                  src/uct/ib/mlx5/gdaki/ucx-ib-mlx5-gda.pc])

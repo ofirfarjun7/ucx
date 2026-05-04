@@ -13,6 +13,7 @@
 %bcond_with    ze
 %bcond_without mlx5
 %bcond_with    efa
+%bcond_without gda
 
 Name: ucx
 Version: @VERSION@
@@ -127,6 +128,7 @@ Provides header files and examples for developing with UCX.
            %_with_arg gdrcopy gdrcopy \
            %_with_arg ib verbs \
            %_with_arg mlx5 mlx5 \
+           %_with_arg gda gda \
            %_with_arg efa efa \
            %_with_arg knem knem \
            %_with_arg rdmacm rdmacm \
@@ -165,7 +167,9 @@ rm -f %{buildroot}%{_libdir}/ucx/lib*.so
 
 %files devel
 %{_includedir}/uc*
+%if %{with cuda} && %{with mlx5} && %{with gda}
 %exclude %{_includedir}/uct/ib/mlx5/gdaki*
+%endif
 %{_libdir}/lib*.so
 %{_libdir}/pkgconfig/ucx.pc
 %{_libdir}/pkgconfig/ucx-uct.pc
@@ -189,6 +193,9 @@ Provides static libraries required for developing with UCX.
 %files static
 %{_libdir}/lib*.a
 %{_libdir}/ucx/lib*.a
+%if %{with cuda} && %{with mlx5} && %{with gda}
+%exclude %{_libdir}/ucx/libuct_ib_mlx5_gda.a
+%endif
 %if %{with cma}
 %{_libdir}/pkgconfig/ucx-cma.pc
 %endif
@@ -213,7 +220,7 @@ Provides static libraries required for developing with UCX.
 %if %{with vfs}
 %{_libdir}/pkgconfig/ucx-fuse.pc
 %endif
-%if %{with cuda} && %{with mlx5}
+%if %{with cuda} && %{with mlx5} && %{with gda}
 %{_libdir}/pkgconfig/ucx-ib-mlx5-gda.pc
 %endif
 
@@ -433,7 +440,7 @@ Provides oneAPI Level Zero (ZE) Runtime support for UCX.
 %{_libdir}/ucx/libucm_ze.so.*
 %endif
 
-%if %{with cuda} && %{with mlx5}
+%if %{with cuda} && %{with mlx5} && %{with gda}
 %package ib-mlx5-gda
 Requires: %{name}-cuda%{?_isa} = %{version}-%{release}
 Requires: %{name}-ib%{?_isa} = %{version}-%{release}

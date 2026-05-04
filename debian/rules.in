@@ -36,9 +36,23 @@ override_dh_auto_install:
 # GDAKI files are packaged in ucx-cuda; the main ucx install's would claim
 # them too. Install ucx first with those paths excluded, then install the
 # remaining packages.
+# When UCX is configured --without-gda, those files are not installed to
+# debian/tmp; list them only here if present so dh_install does not abort.
 override_dh_install:
 	dh_install -pucx -Xgda
 	dh_install --remaining-packages
+	if ls debian/tmp/usr/lib/ucx/libuct_ib_mlx5_gda.* >/dev/null 2>&1; then \
+		dh_install -pucx-cuda --sourcedir=debian/tmp \
+			usr/lib/ucx/libuct_ib_mlx5_gda.* usr/lib/ucx/; \
+	fi
+	if [ -d debian/tmp/usr/include/uct/ib/mlx5/gdaki ]; then \
+		dh_install -pucx-cuda --sourcedir=debian/tmp \
+			usr/include/uct/ib/mlx5/gdaki usr/include/uct/ib/mlx5/; \
+	fi
+	if [ -f debian/tmp/usr/lib/pkgconfig/ucx-ib-mlx5-gda.pc ]; then \
+		dh_install -pucx-cuda --sourcedir=debian/tmp \
+			usr/lib/pkgconfig/ucx-ib-mlx5-gda.pc usr/lib/pkgconfig/; \
+	fi
 
 override_dh_shlibdeps:
 	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
