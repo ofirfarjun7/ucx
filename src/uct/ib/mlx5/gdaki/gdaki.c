@@ -195,40 +195,45 @@ static int uct_gdaki_is_dmabuf_supported(const uct_ib_md_t *md)
     return dmabuf_supported;
 }
 
+static uct_cuda_copy_md_dmabuf_t uct_rc_gdaki_get_dmabuf(const uct_ib_md_t *md,
+                                                         const void *address,
+                                                         size_t length)
+{
+    uct_ib_mlx5_md_t *ib_mlx5_md     = ucs_derived_of(md, uct_ib_mlx5_md_t);
+    uct_cuda_copy_md_dmabuf_t dmabuf = {
+        .fd     = UCT_DMABUF_FD_INVALID,
+        .offset = 0
+    };
+
+    if (ib_mlx5_md->flags & UCT_IB_MLX5_MD_FLAG_REG_DMABUF_UMEM) {
+        return uct_cuda_copy_md_get_dmabuf(address, length,
+                                           UCS_SYS_DEVICE_ID_UNKNOWN);
+    }
+
+    return dmabuf;
+}
+
 static struct mlx5dv_devx_umem *
 uct_rc_gdaki_umem_reg(const uct_ib_md_t *md, struct ibv_context *ibv_context,
                       void *address, size_t length, uint64_t pgsz_bitmap)
 {
 #if HAVE_DECL_MLX5DV_UMEM_MASK_DMABUF
-    uct_ib_mlx5_md_t *ib_mlx5_md       = ucs_derived_of(md, uct_ib_mlx5_md_t);
     struct mlx5dv_devx_umem_in umem_in = {};
-    uct_cuda_copy_md_dmabuf_t dmabuf   = {
-        .fd     = UCT_DMABUF_FD_INVALID,
-        .offset = 0
-    };
+    uct_cuda_copy_md_dmabuf_t dmabuf;
     struct mlx5dv_devx_umem *umem;
 
     umem_in.addr        = address;
     umem_in.size        = length;
     umem_in.access      = IBV_ACCESS_LOCAL_WRITE;
     umem_in.pgsz_bitmap = pgsz_bitmap;
-
-    if (ib_mlx5_md->flags & UCT_IB_MLX5_MD_FLAG_REG_DMABUF_UMEM) {
-        dmabuf = uct_cuda_copy_md_get_dmabuf(address, length,
-                                             UCS_SYS_DEVICE_ID_UNKNOWN);
-        if (dmabuf.fd != UCT_DMABUF_FD_INVALID) {
-            umem_in.comp_mask = MLX5DV_UMEM_MASK_DMABUF;
-            umem_in.dmabuf_fd = dmabuf.fd;
-            umem_in.addr      = (void *)(uintptr_t)dmabuf.offset;
-        }
+    dmabuf              = uct_rc_gdaki_get_dmabuf(md, address, length);
+    if (dmabuf.fd != UCT_DMABUF_FD_INVALID) {
+        umem_in.comp_mask = MLX5DV_UMEM_MASK_DMABUF;
+        umem_in.dmabuf_fd = dmabuf.fd;
     }
 
     umem = mlx5dv_devx_umem_reg_ex(ibv_context, &umem_in);
-
-    if (dmabuf.fd != UCT_DMABUF_FD_INVALID) {
-        ucs_close_fd(&dmabuf.fd);
-    }
-
+    ucs_close_fd(&dmabuf.fd);
     return umem;
 #else
     return mlx5dv_devx_umem_reg(ibv_context, address, length,
@@ -787,6 +792,7 @@ uct_rc_gdaki_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
     iface_attr->cap.flags = UCT_IFACE_FLAG_CONNECT_TO_EP |
                             UCT_IFACE_FLAG_INTER_NODE |
                             UCT_IFACE_FLAG_DEVICE_EP |
+                            UCT_IFACE_FLAG_DEVICE_LKEY |
                             UCT_IFACE_FLAG_ERRHANDLE_PEER_FAILURE;
 
     iface_attr->ep_addr_len    = sizeof(uct_ib_uint24_t) * iface->num_channels;
@@ -796,6 +802,8 @@ uct_rc_gdaki_iface_query(uct_iface_h tl_iface, uct_iface_attr_t *iface_attr)
     iface_attr->cap.put.min_zcopy = 0;
     iface_attr->cap.put.max_zcopy =
             uct_ib_iface_port_attr(&iface->super.super.super)->max_msg_sz;
+    iface_attr->ctl_device    = uct_cuda_get_sys_dev(iface->cuda_dev);
+    iface_attr->dev_num_paths = 1;
 
     return UCS_OK;
 }
@@ -924,6 +932,7 @@ static UCS_CLASS_DECLARE_DELETE_FUNC(uct_rc_gdaki_iface_t, uct_iface_t);
 static uct_rc_iface_ops_t uct_rc_gdaki_internal_ops = {
     .super = {
         .super = {
+            .iface_query_v2         = uct_iface_base_query_v2,
             .iface_estimate_perf    = uct_ib_iface_estimate_perf,
             .iface_vfs_refresh      = (uct_iface_vfs_refresh_func_t)ucs_empty_function,
             .ep_query               = (uct_ep_query_func_t)ucs_empty_function_return_unsupported,
@@ -966,6 +975,27 @@ static uct_iface_ops_t uct_rc_gdaki_iface_tl_ops = {
             ucs_empty_function_return_unsupported,
 };
 
+static ucs_status_t uct_rc_gdaki_reg_mr(const uct_ib_md_t *md, void *address,
+                                        size_t length, struct ibv_mr **mr_p)
+{
+    uct_md_mem_reg_params_t params;
+    uct_cuda_copy_md_dmabuf_t dmabuf;
+    ucs_status_t status;
+
+    params.field_mask    = UCT_MD_MEM_REG_FIELD_FLAGS |
+                           UCT_MD_MEM_REG_FIELD_DMABUF_FD |
+                           UCT_MD_MEM_REG_FIELD_DMABUF_OFFSET;
+    params.flags         = 0;
+    dmabuf               = uct_rc_gdaki_get_dmabuf(md, address, length);
+    params.dmabuf_fd     = dmabuf.fd;
+    params.dmabuf_offset = dmabuf.offset;
+
+    status = uct_ib_reg_mr(md, address, length, &params,
+                           UCT_IB_MEM_ACCESS_FLAGS, NULL, mr_p);
+    ucs_close_fd(&dmabuf.fd);
+    return status;
+}
+
 static UCS_CLASS_INIT_FUNC(uct_rc_gdaki_iface_t, uct_md_h tl_md,
                            uct_worker_h worker,
                            const uct_iface_params_t *params,
@@ -975,13 +1005,11 @@ static UCS_CLASS_INIT_FUNC(uct_rc_gdaki_iface_t, uct_md_h tl_md,
             ucs_derived_of(tl_config, uct_rc_gdaki_iface_config_t);
     uct_ib_mlx5_md_t *md = ucs_derived_of(tl_md, uct_ib_mlx5_md_t);
     uct_ib_iface_init_attr_t init_attr = {};
-    uct_md_mem_reg_params_t reg_params = {};
     UCS_STRING_BUFFER_ONSTACK(strb, 64);
     char *gpu_name, *ib_name;
     char pci_addr[UCS_SYS_BDF_NAME_MAX];
     ucs_status_t status;
     int cuda_id;
-    int ret;
 
     if (config->num_channels > UINT8_MAX + 1) {
          ucs_error("num_channels exceeds maximum value of 256");
@@ -1041,20 +1069,16 @@ static UCS_CLASS_INIT_FUNC(uct_rc_gdaki_iface_t, uct_md_h tl_md,
         goto err_ctx_release;
     }
 
-    ret = ucs_posix_memalign((void**)&self->atomic_buff,
-                             UCS_SYS_CACHE_LINE_SIZE, sizeof(uint64_t),
-                             "gdaki_atomic_buf");
-    if (ret != 0) {
-        ucs_error("failed to allocate AMO buffer");
-        status = UCS_ERR_NO_MEMORY;
+    status = uct_rc_gdaki_alloc(sizeof(uint64_t), sizeof(uint64_t),
+                                (void**)&self->atomic_buff, &self->atomic_raw);
+    if (status != UCS_OK) {
         goto err_ctx;
     }
 
-    status = uct_ib_reg_mr(&md->super, self->atomic_buff, sizeof(uint64_t),
-                           &reg_params, UCT_IB_MEM_ACCESS_FLAGS, NULL,
-                           &self->atomic_mr);
+    status = uct_rc_gdaki_reg_mr(&md->super, self->atomic_buff,
+                                 sizeof(uint64_t), &self->atomic_mr);
     if (status != UCS_OK) {
-        goto err_atomic_buff;
+        goto err_atomic;
     }
 
     if (pthread_mutex_init(&self->ep_init_lock, NULL) != 0) {
@@ -1076,8 +1100,8 @@ err_pool:
     pthread_mutex_destroy(&self->ep_init_lock);
 err_lock:
     ibv_dereg_mr(self->atomic_mr);
-err_atomic_buff:
-    ucs_free(self->atomic_buff);
+err_atomic:
+    cuMemFree(self->atomic_raw);
 err_ctx:
     (void)UCT_CUDADRV_FUNC_LOG_WARN(cuCtxPopCurrent(NULL));
 err_ctx_release:
@@ -1089,11 +1113,11 @@ static UCS_CLASS_CLEANUP_FUNC(uct_rc_gdaki_iface_t)
 {
     pthread_mutex_destroy(&self->ep_init_lock);
     ibv_dereg_mr(self->atomic_mr);
-    ucs_free(self->atomic_buff);
     (void)UCT_CUDADRV_FUNC_LOG_ERR(cuCtxPushCurrent(self->cuda_ctx));
     if (self->ep_alloc_mode == UCT_RC_GDAKI_EP_ALLOC_MODE_POOL) {
         uct_rc_gdaki_iface_cleanup_channel_pool(self);
     }
+    cuMemFree(self->atomic_raw);
     (void)UCT_CUDADRV_FUNC_LOG_WARN(cuCtxPopCurrent(NULL));
     (void)UCT_CUDADRV_FUNC_LOG_WARN(cuDevicePrimaryCtxRelease(self->cuda_dev));
 }
@@ -1106,15 +1130,28 @@ static UCS_CLASS_DEFINE_NEW_FUNC(uct_rc_gdaki_iface_t, uct_iface_t, uct_md_h,
 
 static UCS_CLASS_DEFINE_DELETE_FUNC(uct_rc_gdaki_iface_t, uct_iface_t);
 
-static ucs_status_t uct_gdaki_md_check_uar(uct_ib_mlx5_md_t *md)
+static ucs_status_t
+uct_gdaki_md_check_uar(uct_ib_mlx5_md_t *md, CUdevice cuda_dev)
 {
     struct mlx5dv_devx_uar *uar;
     ucs_status_t status;
+    CUcontext cuda_ctx;
     unsigned flags;
 
     status = uct_ib_mlx5_devx_alloc_uar(md, 0, &uar);
     if (status != UCS_OK) {
-        return status;
+        goto out;
+    }
+
+    status = UCT_CUDADRV_FUNC_LOG_ERR(
+            cuDevicePrimaryCtxRetain(&cuda_ctx, cuda_dev));
+    if (status != UCS_OK) {
+        goto out_free_uar;
+    }
+
+    status = UCT_CUDADRV_FUNC_LOG_ERR(cuCtxPushCurrent(cuda_ctx));
+    if (status != UCS_OK) {
+        goto out_ctx_release;
     }
 
     flags  = CU_MEMHOSTREGISTER_PORTABLE | CU_MEMHOSTREGISTER_DEVICEMAP |
@@ -1122,10 +1159,15 @@ static ucs_status_t uct_gdaki_md_check_uar(uct_ib_mlx5_md_t *md)
     status = UCT_CUDADRV_FUNC_LOG_DEBUG(
             cuMemHostRegister(uar->reg_addr, UCT_IB_MLX5_BF_REG_SIZE, flags));
     if (status == UCS_OK) {
-        UCT_CUDADRV_FUNC_LOG_WARN(cuMemHostUnregister(uar->reg_addr));
+        UCT_CUDADRV_FUNC_LOG_DEBUG(cuMemHostUnregister(uar->reg_addr));
     }
 
+    UCT_CUDADRV_FUNC_LOG_WARN(cuCtxPopCurrent(NULL));
+out_ctx_release:
+    UCT_CUDADRV_FUNC_LOG_WARN(cuDevicePrimaryCtxRelease(cuda_dev));
+out_free_uar:
     mlx5dv_devx_free_uar(uar);
+out:
     return status;
 }
 
@@ -1197,7 +1239,7 @@ static int uct_gdaki_dev_matrix_score(const void *pa, const void *pb, void *arg)
 uct_gdaki_dev_matrix_elem_t *
 uct_gdaki_dev_matrix_init(const uct_ib_md_t *ib_md, size_t *dmat_length_p)
 {
-    unsigned ib_per_cuda              = ib_md->config.gda_max_hca_per_gpu;
+    unsigned long ib_per_cuda         = ib_md->config.gda_max_hca_per_gpu;
     uct_gdaki_dev_matrix_elem_t *dmat = NULL;
     ucs_status_t status;
     int ibdev_index, cudadev_index, ibdev_count, cudadev_count;
@@ -1275,6 +1317,10 @@ uct_gdaki_dev_matrix_init(const uct_ib_md_t *ib_md, size_t *dmat_length_p)
     }
 
     ucs_assert(cudadev_count < UCT_GDAKI_MAX_CUDA_PER_IB);
+
+    if (ib_per_cuda == UCS_ULUNITS_AUTO) {
+        ib_per_cuda = ibdev_count / cudadev_count;
+    }
 
     /* Map each CUDA device to the best suited IB devices */
     for (cudadev_index = 0; cudadev_index < cudadev_count; cudadev_index++) {
@@ -1387,7 +1433,7 @@ uct_gdaki_check_cuda_ctx_dependent_features(uct_ib_mlx5_md_t *ib_mlx5_md)
         goto out;
     }
 
-    if (uct_gdaki_is_uar_supported(ib_mlx5_md)) {
+    if (uct_gdaki_is_uar_supported(ib_mlx5_md, cuda_dev)) {
         ret = 1;
     } else {
         ret = 0;
@@ -1412,7 +1458,6 @@ uct_gdaki_query_tl_devices(uct_md_h tl_md,
     uct_tl_device_resource_t *tl_devices;
     ucs_status_t status;
     CUdevice device;
-    ucs_sys_device_t dev;
     int i;
     uct_gdaki_dev_matrix_elem_t *ibdesc;
 
@@ -1456,6 +1501,11 @@ uct_gdaki_query_tl_devices(uct_md_h tl_md,
     ucs_for_each_bit(i, ibdesc->cuda_map) {
         status = UCT_CUDADRV_FUNC_LOG_ERR(cuDeviceGet(&device, i));
         if (status != UCS_OK) {
+            goto err;
+        }
+
+        if (!uct_gdaki_is_uar_supported(ib_mlx5_md, device)) {
+            status = UCS_ERR_NO_DEVICE;
             goto err;
         }
 
