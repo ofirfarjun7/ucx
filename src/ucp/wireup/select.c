@@ -2456,6 +2456,47 @@ static double ucp_wireup_device_score_func(const ucp_worker_iface_t *wiface,
                                             dev_count) / UCS_MBYTE;
 }
 
+/* rc_gda TL name is defined by gdaki (uct/ib/mlx5/gdaki). */
+#define UCP_WIREUP_RC_GDA_TL_NAME "rc_gda"
+
+static void
+ucp_wireup_rc_gda_cuda_device_tl_bitmap(ucp_context_h context,
+                                        const ucp_tl_bitmap_t *src_tl_bitmap,
+                                        ucp_tl_bitmap_t *dst_tl_bitmap)
+{
+    ucp_rsc_index_t rsc_index;
+
+    UCS_STATIC_BITMAP_RESET_ALL(dst_tl_bitmap);
+    UCS_STATIC_BITMAP_FOR_EACH_BIT(rsc_index, src_tl_bitmap) {
+        if (!strcmp(context->tl_rscs[rsc_index].tl_rsc.tl_name,
+                     UCP_WIREUP_RC_GDA_TL_NAME)) {
+            UCS_STATIC_BITMAP_SET(dst_tl_bitmap, rsc_index);
+        }
+    }
+}
+
+static int
+ucp_wireup_device_lane_has_rc_gda(const ucp_wireup_select_context_t *select_ctx,
+                                   ucp_context_h context)
+{
+    ucp_lane_index_t lane;
+
+    for (lane = 0; lane < select_ctx->num_lanes; ++lane) {
+        if (!(select_ctx->lane_descs[lane].lane_types &
+              UCS_BIT(UCP_LANE_TYPE_DEVICE))) {
+            continue;
+        }
+
+        if (!strcmp(context->tl_rscs[select_ctx->lane_descs[lane].rsc_index]
+                            .tl_rsc.tl_name,
+                    UCP_WIREUP_RC_GDA_TL_NAME)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 /* Also ignore error mode when set to peer failure */
 static ucs_status_t
 ucp_wireup_add_device_lanes(const ucp_wireup_select_params_t *select_params,
@@ -2466,7 +2507,10 @@ ucp_wireup_add_device_lanes(const ucp_wireup_select_params_t *select_params,
                                                       select_ctx);
     ucp_wireup_select_flags_t iface_rma_flags, peer_rma_flags;
     ucp_wireup_select_bw_info_t bw_info = {};
+    ucp_wireup_select_bw_info_t bw_info_rc_gda;
     ucp_tl_bitmap_t mem_type_tl_bitmap;
+    ucp_tl_bitmap_t rc_gda_tl_bitmap;
+    size_t max_lanes;
     int found_lane;
 
     if (!context->config.ext.proto_enable ||
@@ -2497,13 +2541,37 @@ ucp_wireup_add_device_lanes(const ucp_wireup_select_params_t *select_params,
      * Device operated lanes are not fastpath, they need proto selection and
      * memory list creation.
      */
-    bw_info.max_lanes = ucp_wireup_bw_max_lanes(select_params);
+    max_lanes         = ucp_wireup_bw_max_lanes(select_params);
+    bw_info.max_lanes = max_lanes;
 
     ucp_wireup_memaccess_bitmap(context, UCS_MEMORY_TYPE_CUDA,
                                 &mem_type_tl_bitmap);
+    ucp_wireup_rc_gda_cuda_device_tl_bitmap(context, &mem_type_tl_bitmap,
+                                            &rc_gda_tl_bitmap);
+
+    /*
+     * When rc_gda is available for CUDA device access, reserve one device lane
+     * for it so a high-scoring cuda_ipc selection cannot consume the entire
+     * device-lane budget (rc_gda needs an IB DEVICE_EP lane for fallback).
+     */
+    if (!UCS_STATIC_BITMAP_IS_ZERO(rc_gda_tl_bitmap) && (max_lanes > 1)) {
+        bw_info.max_lanes = max_lanes - 1;
+    }
+
     found_lane = ucp_wireup_add_bw_lanes(select_params, &bw_info,
                                          mem_type_tl_bitmap, UCP_NULL_LANE,
                                          select_ctx, 0);
+
+    if (!UCS_STATIC_BITMAP_IS_ZERO(rc_gda_tl_bitmap) && (max_lanes > 1) &&
+        !ucp_wireup_device_lane_has_rc_gda(select_ctx, context)) {
+        bw_info_rc_gda                = bw_info;
+        bw_info_rc_gda.max_lanes      = 1;
+        bw_info_rc_gda.criteria.title = "device remote memory access (rc_gda)";
+        found_lane |= ucp_wireup_add_bw_lanes(select_params, &bw_info_rc_gda,
+                                              rc_gda_tl_bitmap, UCP_NULL_LANE,
+                                              select_ctx, 0);
+    }
+
     if (!found_lane) {
         ucs_debug("ep %p: could not find device lanes", select_params->ep);
     }
