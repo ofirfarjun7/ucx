@@ -17,6 +17,8 @@
 #include <ucs/type/param.h>
 #include <ucp/wireup/wireup_ep.h>
 #include <uct/api/v2/uct_v2.h>
+#include <ucs/datastruct/khash.h>
+#include <inttypes.h>
 
 #include "ucp_worker.inl"
 #include "ucp_ep.inl"
@@ -162,7 +164,7 @@ ucp_device_detect_local_md_map(const ucp_context_h context,
 static void ucp_device_mem_list_lane_lookup(
         ucp_ep_h ep, ucp_ep_config_t *ep_config, ucs_sys_device_t local_sys_dev,
         ucp_md_map_t local_md_map, ucs_sys_device_t remote_sys_dev,
-        ucp_md_map_t remote_md_map,
+        ucp_md_map_t rkey_md_map, int relax_remote_sys_dev,
         ucp_lane_index_t lanes[UCP_DEVICE_MEM_LIST_MAX_EPS])
 {
     double best_bw[UCP_DEVICE_MEM_LIST_MAX_EPS] = {-1., -1.};
@@ -183,23 +185,18 @@ static void ucp_device_mem_list_lane_lookup(
 
         lane_key = &ep_config->key.lanes[lane];
         /* Check lane remote sys dev only when remote memory is not host */
-        if ((remote_sys_dev != UCS_SYS_DEVICE_ID_UNKNOWN) &&
+        if (!relax_remote_sys_dev &&
+            (remote_sys_dev != UCS_SYS_DEVICE_ID_UNKNOWN) &&
             (remote_sys_dev != lane_key->dst_sys_dev)) {
             ucs_trace("lane[%u] wrong destination sys_dev: dst_sys_dev=%u",
                       lane, lane_key->dst_sys_dev);
             continue;
         }
 
-        if (!(remote_md_map & UCS_BIT(lane_key->dst_md_index))) {
+        /* Use unpacked rkey md_map so lane dst_md matches a valid tl_rkey */
+        if (!(rkey_md_map & UCS_BIT(lane_key->dst_md_index))) {
             ucs_trace("lane[%u] missing remote md: dst_md_index=%u", lane,
                       lane_key->dst_md_index);
-            continue;
-        }
-
-        src_sys_dev = ucp_ep_get_tl_rsc(ep, lane)->sys_device;
-        if (src_sys_dev != local_sys_dev) {
-            ucs_trace("lane[%u] wrong source sys_dev: src_sys_dev=%u", lane,
-                      src_sys_dev);
             continue;
         }
 
@@ -210,8 +207,15 @@ static void ucp_device_mem_list_lane_lookup(
             continue;
         }
 
-        bandwidth = ucp_worker_iface_bandwidth(ep->worker,
-                                               ucp_ep_get_rsc_index(ep, lane));
+        /*
+         * Do not require tl_rsc.sys_device == local_sys_dev: local_md_map already
+         * restricts to MDs that can reach local_sys_dev (e.g. the CUDA GPU).
+         * IB device lanes report the NIC as sys_device while local_sys_dev is
+         * the GPU; they must remain eligible after cuda_ipc (GPU TL) is dropped.
+         */
+        src_sys_dev = ucp_ep_get_tl_rsc(ep, lane)->sys_device;
+        bandwidth   = ucp_worker_iface_bandwidth(ep->worker,
+                                                  ucp_ep_get_rsc_index(ep, lane));
         ucs_trace("checking lane[%u] src_md_index=%u dst_md_index=%u "
                   "src_sys_dev=%u dst_sys_dev=%u bandwidth=%lfMB/s",
                   lane, src_md_index, lane_key->dst_md_index, src_sys_dev,
@@ -466,6 +470,40 @@ ucp_device_local_mem_list_create(const ucp_device_mem_list_params_t *params,
     return status;
 }
 
+/* After wireup reconfigures the EP, rkey->cfg_index may still index rkey_config
+ * built for an older ep_cfg_index; look up the entry for the current ep. */
+static ucp_worker_cfg_index_t
+ucp_device_resolve_rkey_cfg_index(ucp_ep_h ep, ucp_rkey_h rkey)
+{
+    ucp_worker_h worker = ep->worker;
+    ucp_worker_cfg_index_t rkey_cfg_index;
+    const ucp_rkey_config_t *rkey_config;
+    ucp_rkey_config_key_t key;
+    khiter_t iter;
+
+    rkey_cfg_index = rkey->cfg_index;
+    rkey_config    = &ucs_array_elem(&worker->rkey_config, rkey_cfg_index);
+    if (ucs_likely(rkey_config->key.ep_cfg_index == ep->cfg_index)) {
+        return rkey_cfg_index;
+    }
+
+    key              = rkey_config->key;
+    key.ep_cfg_index = ep->cfg_index;
+    iter             = kh_get(ucp_worker_rkey_config, &worker->rkey_config_hash,
+                              key);
+    if (iter != kh_end(&worker->rkey_config_hash)) {
+        ucs_trace("ucp_device: rkey cfg remap ep_cfg %u -> %u for ep %p",
+                  rkey_config->key.ep_cfg_index, ep->cfg_index, ep);
+        return kh_val(&worker->rkey_config_hash, iter);
+    }
+
+    ucs_debug("ucp_device: no rkey proto cfg for ep_cfg=%u md_map=0x%" PRIx64
+              " (unpack ep_cfg=%u); using rkey cfg_index %u",
+              ep->cfg_index, rkey->md_map, rkey_config->key.ep_cfg_index,
+              rkey_cfg_index);
+    return rkey_cfg_index;
+}
+
 static ucs_status_t ucp_device_remote_mem_list_element_pack(
         const ucp_device_mem_list_elem_t *element,
         const ucs_sys_device_t local_sys_dev, const ucs_memory_type_t mem_type,
@@ -475,11 +513,11 @@ static ucs_status_t ucp_device_remote_mem_list_element_pack(
     const ucp_rkey_h rkey = element->rkey;
     const ucp_md_map_t local_md_map =
             ucp_device_detect_local_md_map(ep->worker->context, local_sys_dev);
-    const ucp_worker_cfg_index_t rkey_cfg_index = element->rkey->cfg_index;
+    const ucp_worker_cfg_index_t rkey_cfg_index =
+            ucp_device_resolve_rkey_cfg_index(ep, rkey);
     const ucp_rkey_config_t rkey_config =
             ucs_array_elem(&ep->worker->rkey_config, rkey_cfg_index);
     const ucs_sys_device_t remote_sys_dev = rkey_config.key.sys_dev;
-    const ucp_md_map_t remote_md_map      = rkey_config.key.md_map;
     ucp_ep_config_t *ep_config            = ucp_ep_config(ep);
     ucp_lane_index_t lanes[UCP_DEVICE_MEM_LIST_MAX_EPS];
     uint8_t rkey_index;
@@ -490,11 +528,22 @@ static ucs_status_t ucp_device_remote_mem_list_element_pack(
     ucp_lane_index_t lane;
 
     ucp_device_mem_list_lane_lookup(ep, ep_config, local_sys_dev, local_md_map,
-                                    remote_sys_dev, remote_md_map, lanes);
+                                    remote_sys_dev, rkey->md_map, 0, lanes);
+    if ((lanes[0] == UCP_NULL_LANE) && (lanes[1] == UCP_NULL_LANE)) {
+        ucp_device_mem_list_lane_lookup(ep, ep_config, local_sys_dev, local_md_map,
+                                        remote_sys_dev, rkey->md_map, 1, lanes);
+    }
+
     lane = lanes[0];
+    if (lane == UCP_NULL_LANE) {
+        lane = lanes[1];
+    }
 
     if (lane == UCP_NULL_LANE) {
-        ucs_error("no lane found for ep=%p", ep);
+        ucs_error("no UCP_LANE_TYPE_DEVICE lane for ep=%p rkey_md_map=0x%" PRIx64
+                  " (cuda_ipc removed and no IB device ep: use non-device path "
+                  "or disable cuda_ipc for this topology)",
+                  ep, rkey->md_map);
         return UCS_ERR_NO_DEVICE;
     }
 
