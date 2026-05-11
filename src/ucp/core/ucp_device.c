@@ -188,21 +188,21 @@ static void ucp_device_mem_list_lane_lookup(
         if (!relax_remote_sys_dev &&
             (remote_sys_dev != UCS_SYS_DEVICE_ID_UNKNOWN) &&
             (remote_sys_dev != lane_key->dst_sys_dev)) {
-            printf("lane[%u] wrong destination sys_dev: dst_sys_dev=%u\n",
+            ucs_trace("lane[%u] wrong destination sys_dev: dst_sys_dev=%u",
                       lane, lane_key->dst_sys_dev);
             continue;
         }
 
         /* Use unpacked rkey md_map so lane dst_md matches a valid tl_rkey */
         if (!(rkey_md_map & UCS_BIT(lane_key->dst_md_index))) {
-            printf("lane[%u] missing remote md: dst_md_index=%u\n", lane,
+            ucs_trace("lane[%u] missing remote md: dst_md_index=%u", lane,
                       lane_key->dst_md_index);
             continue;
         }
 
         src_md_index = ucp_ep_md_index(ep, lane);
         if (!(local_md_map & UCS_BIT(src_md_index))) {
-            printf("lane[%u] missing local md: src_md_index=%u\n", lane,
+            ucs_trace("lane[%u] missing local md: src_md_index=%u", lane,
                       src_md_index);
             continue;
         }
@@ -216,8 +216,8 @@ static void ucp_device_mem_list_lane_lookup(
         src_sys_dev = ucp_ep_get_tl_rsc(ep, lane)->sys_device;
         bandwidth   = ucp_worker_iface_bandwidth(ep->worker,
                                                   ucp_ep_get_rsc_index(ep, lane));
-        printf("checking lane[%u] src_md_index=%u dst_md_index=%u "
-                  "src_sys_dev=%u dst_sys_dev=%u bandwidth=%lfMB/s\n",
+        ucs_trace("checking lane[%u] src_md_index=%u dst_md_index=%u "
+                  "src_sys_dev=%u dst_sys_dev=%u bandwidth=%lfMB/s",
                   lane, src_md_index, lane_key->dst_md_index, src_sys_dev,
                   lane_key->dst_sys_dev, bandwidth / UCS_MBYTE);
 
