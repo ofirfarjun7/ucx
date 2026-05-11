@@ -179,6 +179,7 @@ static void ucp_device_mem_list_lane_lookup(
         printf("checking lane[%u]\n", lane);
         if (!(ep_config->key.lanes[lane].lane_types &
               UCS_BIT(UCP_LANE_TYPE_DEVICE))) {
+            printf("lane[%u] not a device lane\n", lane);
             continue;
         }
 
