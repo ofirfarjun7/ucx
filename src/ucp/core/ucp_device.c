@@ -176,6 +176,7 @@ static void ucp_device_mem_list_lane_lookup(
     lanes[1] = UCP_NULL_LANE;
 
     for (lane = 0; lane < ep_config->key.num_lanes; ++lane) {
+        printf("checking lane[%u]\n", lane);
         if (!(ep_config->key.lanes[lane].lane_types &
               UCS_BIT(UCP_LANE_TYPE_DEVICE))) {
             continue;
@@ -233,6 +234,8 @@ static void ucp_device_mem_list_lane_lookup(
         ucs_trace("best lanes: lane[%u]=%lfMB/s lane[%u]=%lfMB/s", lanes[0],
                   best_bw[0] / UCS_MBYTE, lanes[1], best_bw[1] / UCS_MBYTE);
     }
+
+    printf("lane %d\n", lane);
 }
 
 
