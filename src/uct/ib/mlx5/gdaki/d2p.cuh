@@ -40,7 +40,7 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_post_desc(uct_ib_d2p_gpu_ep_t *ep,
                 break;
             }
 
-            unsigned long long prev = atomicCAS(ep->pi, pi, pi + 1);
+            unsigned long long prev = atomicCAS(ep->pi[cid], pi, pi + 1);
             if (prev == pi) {
                 break;
             }
