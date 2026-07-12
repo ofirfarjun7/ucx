@@ -18,6 +18,7 @@
 template<ucs_device_level_t level>
 UCS_F_DEVICE ucs_status_t uct_ib_d2p_post_desc(uct_ib_d2p_gpu_ep_t *ep,
                                                uint8_t opcode, uint32_t length,
+                                               unsigned channel_id,
                                                uint32_t lkey, uint64_t laddr,
                                                uint32_t rkey, uint64_t raddr,
                                                uint64_t add, uint16_t flags)
@@ -28,11 +29,12 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_post_desc(uct_ib_d2p_gpu_ep_t *ep,
     uct_dev_exec_init<level>(lane_id, num_lanes);
 
     if (lane_id == 0) {
+        const unsigned cid = channel_id & ep->channel_mask;
         const long long depth = UCS_BIT(ep->log_depth);
-        unsigned long long pi = READ_ONCE(*ep->pi);
+        unsigned long long pi = READ_ONCE(*ep->pi[cid]);
 
         for (;;) {
-            unsigned long long ci = READ_ONCE(*ep->ci);
+            unsigned long long ci = READ_ONCE(*ep->ci[cid]);
             if (static_cast<long long>(pi - ci) >= depth) {
                 status = UCS_ERR_NO_RESOURCE;
                 break;
@@ -48,12 +50,12 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_post_desc(uct_ib_d2p_gpu_ep_t *ep,
         if (status == UCS_INPROGRESS) {
             const uint32_t slot = pi & UCS_MASK(ep->log_depth);
             auto desc     = reinterpret_cast<volatile uct_ib_d2p_desc_t*>(
-                                ep->queue_base) +
+                                ep->queue_base[cid]) +
                             slot;
 
             desc->opcode = opcode;
             desc->length = length;
-            desc->qp_idx = ep->qp_idx;
+            desc->qp_idx = ep->qp_idx[cid];
             desc->lkey   = lkey;
             desc->laddr  = laddr;
             desc->rkey   = rkey;
@@ -74,8 +76,8 @@ template<ucs_device_level_t level>
 UCS_F_DEVICE ucs_status_t uct_ib_d2p_ep_put(
         uct_device_ep_h tl_ep, const uct_device_mem_elem_t *src_uct_elem,
         const uct_device_mem_elem_t *tl_mem_elem, const void *address,
-        uint64_t remote_address, size_t length, uint64_t flags,
-        uct_device_completion_t *comp)
+        uint64_t remote_address, size_t length, unsigned channel_id,
+        uint64_t flags, uct_device_completion_t *comp)
 {
     auto ep     = reinterpret_cast<uct_ib_d2p_gpu_ep_t*>(tl_ep);
     auto src_ib = reinterpret_cast<const uct_ib_md_device_mem_element_t*>(
@@ -84,7 +86,7 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_ep_put(
             tl_mem_elem);
 
     return uct_ib_d2p_post_desc<level>(
-            ep, UCT_IB_D2P_OP_RDMA_WRITE, length, src_ib->lkey,
+            ep, UCT_IB_D2P_OP_RDMA_WRITE, length, channel_id, src_ib->lkey,
             reinterpret_cast<uint64_t>(address), rem_ib->rkey, remote_address,
             0, comp == nullptr ? 0 : UCT_IB_D2P_FLAG_CQ_UPDATE);
 }
@@ -92,16 +94,18 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_ep_put(
 template<ucs_device_level_t level>
 UCS_F_DEVICE ucs_status_t uct_ib_d2p_ep_atomic_add(
         uct_device_ep_h tl_ep, const uct_device_mem_elem_t *tl_mem_elem,
-        uint64_t inc_value, uint64_t remote_address, uint64_t flags,
-        uct_device_completion_t *comp)
+        uint64_t inc_value, uint64_t remote_address, unsigned channel_id,
+        uint64_t flags, uct_device_completion_t *comp)
 {
     auto ep     = reinterpret_cast<uct_ib_d2p_gpu_ep_t*>(tl_ep);
+    const unsigned cid = channel_id & ep->channel_mask;
     auto rem_ib = reinterpret_cast<const uct_ib_md_device_mem_element_t*>(
             tl_mem_elem);
 
     return uct_ib_d2p_post_desc<level>(ep, UCT_IB_D2P_OP_ATOMIC_ADD,
-                                       sizeof(uint64_t), ep->atomic_result_lkey,
-                                       ep->atomic_result_va, rem_ib->rkey,
+                                       sizeof(uint64_t), channel_id,
+                                       ep->atomic_result_lkey[cid],
+                                       ep->atomic_result_va[cid], rem_ib->rkey,
                                        remote_address, inc_value,
                                        comp == nullptr ?
                                                0 :
