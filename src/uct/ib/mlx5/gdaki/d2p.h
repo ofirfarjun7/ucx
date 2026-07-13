@@ -8,7 +8,7 @@
 
 #include <uct/api/device/uct_device_types.h>
 
-#define UCT_IB_D2P_MAX_CHANNELS 4
+#define UCT_IB_D2P_MAX_CHANNELS 16
 
 typedef struct {
     uct_device_ep_t    super;
