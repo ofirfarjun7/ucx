@@ -30,17 +30,18 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_post_desc(uct_ib_d2p_gpu_ep_t *ep,
 
     if (lane_id == 0) {
         const unsigned cid = channel_id & ep->channel_mask;
+        const uct_ib_d2p_channel_t *channel = &ep->channels[cid];
         const long long depth = UCS_BIT(ep->log_depth);
-        unsigned long long pi = READ_ONCE(*ep->pi[cid]);
+        unsigned long long pi = READ_ONCE(*channel->pi);
 
         for (;;) {
-            unsigned long long ci = READ_ONCE(*ep->ci[cid]);
+            unsigned long long ci = READ_ONCE(*channel->ci);
             if (static_cast<long long>(pi - ci) >= depth) {
                 status = UCS_ERR_NO_RESOURCE;
                 break;
             }
 
-            unsigned long long prev = atomicCAS(ep->pi[cid], pi, pi + 1);
+            unsigned long long prev = atomicCAS(channel->pi, pi, pi + 1);
             if (prev == pi) {
                 break;
             }
@@ -50,12 +51,12 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_post_desc(uct_ib_d2p_gpu_ep_t *ep,
         if (status == UCS_INPROGRESS) {
             const uint32_t slot = pi & UCS_MASK(ep->log_depth);
             auto desc     = reinterpret_cast<volatile uct_ib_d2p_desc_t*>(
-                                ep->queue_base[cid]) +
+                                channel->queue_base) +
                             slot;
 
             desc->opcode = opcode;
             desc->length = length;
-            desc->qp_idx = ep->qp_idx[cid];
+            desc->qp_idx = channel->qp_idx;
             desc->lkey   = lkey;
             desc->laddr  = laddr;
             desc->rkey   = rkey;
@@ -99,13 +100,14 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_ep_atomic_add(
 {
     auto ep     = reinterpret_cast<uct_ib_d2p_gpu_ep_t*>(tl_ep);
     const unsigned cid = channel_id & ep->channel_mask;
+    const uct_ib_d2p_channel_t *channel = &ep->channels[cid];
     auto rem_ib = reinterpret_cast<const uct_ib_md_device_mem_element_t*>(
             tl_mem_elem);
 
     return uct_ib_d2p_post_desc<level>(ep, UCT_IB_D2P_OP_ATOMIC_ADD,
                                        sizeof(uint64_t), channel_id,
-                                       ep->atomic_result_lkey[cid],
-                                       ep->atomic_result_va[cid], rem_ib->rkey,
+                                       channel->atomic_result_lkey,
+                                       channel->atomic_result_va, rem_ib->rkey,
                                        remote_address, inc_value,
                                        comp == nullptr ?
                                                0 :
