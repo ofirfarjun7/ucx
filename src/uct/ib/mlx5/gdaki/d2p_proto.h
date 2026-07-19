@@ -6,6 +6,7 @@
 #ifndef UCT_D2P_PROTO_H_
 #define UCT_D2P_PROTO_H_
 
+#include <uct/api/device/uct_device_flags.h>
 #include <ucs/sys/compiler_def.h>
 
 
@@ -16,7 +17,7 @@ enum {
 
 
 enum {
-    UCT_IB_D2P_FLAG_CQ_UPDATE = UCS_BIT(0),
+    UCT_IB_D2P_FLAG_CQ_UPDATE = UCT_DEVICE_FLAG_LAST << 1,
 };
 
 

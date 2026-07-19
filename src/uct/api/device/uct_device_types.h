@@ -7,6 +7,8 @@
 #ifndef UCT_DEVICE_TYPES_H
 #define UCT_DEVICE_TYPES_H
 
+#include "uct_device_flags.h"
+
 #include <ucs/type/status.h>
 #include <uct/api/uct_def.h>
 #include <stdint.h>
@@ -43,14 +45,6 @@ typedef struct uct_ib_md_device_mem_element {
     uint32_t lkey;
     uint32_t rkey;
 } uct_ib_md_device_mem_element_t;
-
-
-/**
- * @brief Specify modifier flags for device sending functions.
- */
-typedef enum {
-    UCT_DEVICE_FLAG_NODELAY = UCS_BIT(0) /**< Complete before return. */
-} uct_device_flags_t;
 
 
 /* Device transport id (for internal use) */

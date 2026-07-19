@@ -85,11 +85,16 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_ep_put(
             src_uct_elem);
     auto rem_ib = reinterpret_cast<const uct_ib_md_device_mem_element_t*>(
             tl_mem_elem);
+    uint16_t desc_flags = flags & UCT_DEVICE_FLAG_NODELAY;
+
+    if (comp != nullptr) {
+        desc_flags |= UCT_IB_D2P_FLAG_CQ_UPDATE;
+    }
 
     return uct_ib_d2p_post_desc<level>(
             ep, UCT_IB_D2P_OP_RDMA_WRITE, length, channel_id, src_ib->lkey,
             reinterpret_cast<uint64_t>(address), rem_ib->rkey, remote_address,
-            0, comp == nullptr ? 0 : UCT_IB_D2P_FLAG_CQ_UPDATE);
+            0, desc_flags);
 }
 
 template<ucs_device_level_t level>
@@ -103,15 +108,17 @@ UCS_F_DEVICE ucs_status_t uct_ib_d2p_ep_atomic_add(
     const uct_ib_d2p_channel_t *channel = &ep->channels[cid];
     auto rem_ib = reinterpret_cast<const uct_ib_md_device_mem_element_t*>(
             tl_mem_elem);
+    uint16_t desc_flags = flags & UCT_DEVICE_FLAG_NODELAY;
+
+    if (comp != nullptr) {
+        desc_flags |= UCT_IB_D2P_FLAG_CQ_UPDATE;
+    }
 
     return uct_ib_d2p_post_desc<level>(ep, UCT_IB_D2P_OP_ATOMIC_ADD,
                                        sizeof(uint64_t), channel_id,
                                        channel->atomic_result_lkey,
                                        channel->atomic_result_va, rem_ib->rkey,
-                                       remote_address, inc_value,
-                                       comp == nullptr ?
-                                               0 :
-                                               UCT_IB_D2P_FLAG_CQ_UPDATE);
+                                       remote_address, inc_value, desc_flags);
 }
 
 template<ucs_device_level_t level>

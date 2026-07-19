@@ -21,6 +21,7 @@ nobase_dist_libuct_la_HEADERS = \
 	api/uct_def.h \
 	api/uct.h \
 	api/version.h \
+	api/device/uct_device_flags.h \
 	api/device/uct_device_impl.h \
 	api/device/uct_device_types.h
 
