@@ -283,9 +283,17 @@ UCS_F_DEVICE ucs_status_t uct_rc_mlx5_gda_ep_single(
     uint64_t wqe_base;
     unsigned lane_id;
     unsigned num_lanes;
+    uint64_t t0, t1;
 
     uct_dev_exec_init<level>(lane_id, num_lanes);
+    if (!(flags & UCT_DEVICE_FLAG_NODELAY)) {
+        asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t0));
+    }
     uct_rc_mlx5_gda_reserv_wqe<level>(ep, cid, 1, lane_id, wqe_base);
+    if (!(flags & UCT_DEVICE_FLAG_NODELAY)) {
+        asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t1));
+        printf("Reservation latency on defer: %llu\n", t1 - t0);
+    }
     if (wqe_base == UCT_RC_GDA_RESV_WQE_NO_RESOURCE) {
         return UCS_ERR_NO_RESOURCE;
     }
@@ -310,7 +318,14 @@ UCS_F_DEVICE ucs_status_t uct_rc_mlx5_gda_ep_single(
     uct_dev_sync<level>();
 
     if (lane_id == 0) {
+        if (!(flags & UCT_DEVICE_FLAG_NODELAY)) {
+            asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t0));
+        }
         uct_rc_mlx5_gda_db(ep, cid, wqe_base, 1, flags);
+        if (!(flags & UCT_DEVICE_FLAG_NODELAY)) {
+            asm volatile("mov.u64 %0, %%globaltimer;" : "=l"(t1));
+            printf("DB latency on defer: %llu\n", t1 - t0);
+        }
     }
 
     uct_dev_sync<level>();
