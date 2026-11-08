@@ -275,21 +275,24 @@ uct_rc_mlx5_gda_get_ready_seq(uct_rc_gdaki_dev_ep_t *ep, unsigned cid,
     return ep->sq_ready_seq + index;
 }
 
-UCS_F_DEVICE uint64_t
-uct_rc_mlx5_gda_advance_ready(uct_rc_gdaki_dev_ep_t *ep, unsigned cid)
+UCS_F_DEVICE void
+uct_rc_mlx5_gda_wait_ready(uct_rc_gdaki_dev_ep_t *ep, unsigned cid,
+                          uint64_t target)
 {
     uct_rc_gdaki_dev_qp_t *qp = uct_rc_mlx5_gda_get_qp(ep, cid);
     uint64_t frontier;
     uint64_t candidate;
-    uint64_t reserved;
     uint64_t old_frontier;
 
     for (;;) {
         frontier = uct_rc_mlx5_gda_atomic_load(&qp->sq_ready_index);
-        reserved = uct_rc_mlx5_gda_atomic_load(&qp->sq_rsvd_index);
+        if (frontier >= target) {
+            return;
+        }
+
         candidate = frontier;
 
-        while ((candidate < reserved) &&
+        while ((candidate < target) &&
                (uct_rc_mlx5_gda_atomic_load(
                         uct_rc_mlx5_gda_get_ready_seq(ep, cid, candidate)) ==
                 candidate + 1)) {
@@ -297,15 +300,16 @@ uct_rc_mlx5_gda_advance_ready(uct_rc_gdaki_dev_ep_t *ep, unsigned cid)
         }
 
         if (candidate == frontier) {
-            return frontier;
+            continue;
         }
 
         doca_gpu_dev_verbs_fence_acquire<uct_rc_gdaki_sync_scope>();
         doca_gpu_dev_verbs_fence_release<uct_rc_gdaki_sync_scope>();
         old_frontier = uct_rc_mlx5_gda_atomic_cas(
                 &qp->sq_ready_index, frontier, candidate);
-        if (old_frontier == frontier) {
-            return candidate;
+        if (((old_frontier == frontier) && (candidate == target)) ||
+            (old_frontier >= target)) {
+            return;
         }
     }
 }
@@ -317,7 +321,6 @@ UCS_F_DEVICE void uct_rc_mlx5_gda_db(uct_rc_gdaki_dev_ep_t *ep, unsigned cid,
     auto qp = uct_rc_mlx5_gda_get_qp(ep, cid);
     const uint64_t wqe_next = wqe_base + count;
     const bool skip_db      = !(flags & UCT_DEVICE_FLAG_NODELAY);
-    uint64_t ready;
     uint64_t wqe_idx;
 
     doca_gpu_dev_verbs_fence_release<uct_rc_gdaki_sync_scope>();
@@ -326,15 +329,11 @@ UCS_F_DEVICE void uct_rc_mlx5_gda_db(uct_rc_gdaki_dev_ep_t *ep, unsigned cid,
                 uct_rc_mlx5_gda_get_ready_seq(ep, cid, wqe_idx), wqe_idx + 1);
     }
 
-    ready = uct_rc_mlx5_gda_advance_ready(ep, cid);
     if (skip_db) {
         return;
     }
 
-    while (ready < wqe_next) {
-        ready = uct_rc_mlx5_gda_advance_ready(ep, cid);
-    }
-
+    uct_rc_mlx5_gda_wait_ready(ep, cid, wqe_next);
     doca_gpu_dev_verbs_fence_acquire<uct_rc_gdaki_sync_scope>();
     doca_gpu_dev_verbs_lock<
             UCT_RC_GDAKI_RESOURCE_SHARING_MODE>(&qp->sq_lock);
