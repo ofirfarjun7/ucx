@@ -239,6 +239,77 @@ UCS_F_DEVICE void uct_rc_mlx5_gda_wqe_prepare_put_or_atomic(
     doca_gpu_dev_verbs_store_wqe_seg(dseg_ptr, (uint64_t*)&(dseg));
 }
 
+UCS_F_DEVICE uint64_t
+uct_rc_mlx5_gda_atomic_cas(uint64_t *ptr, uint64_t compare, uint64_t value)
+{
+    if (UCT_RC_GDAKI_RESOURCE_SHARING_MODE ==
+        DOCA_GPUNETIO_VERBS_RESOURCE_SHARING_MODE_CTA) {
+        return atomicCAS_block((unsigned long long int*)ptr, compare, value);
+    }
+
+    return atomicCAS((unsigned long long int*)ptr, compare, value);
+}
+
+UCS_F_DEVICE uint64_t uct_rc_mlx5_gda_atomic_load(uint64_t *ptr)
+{
+    return uct_rc_mlx5_gda_atomic_cas(ptr, 0, 0);
+}
+
+UCS_F_DEVICE void uct_rc_mlx5_gda_atomic_store(uint64_t *ptr, uint64_t value)
+{
+    if (UCT_RC_GDAKI_RESOURCE_SHARING_MODE ==
+        DOCA_GPUNETIO_VERBS_RESOURCE_SHARING_MODE_CTA) {
+        atomicExch_block((unsigned long long int*)ptr, value);
+    } else {
+        atomicExch((unsigned long long int*)ptr, value);
+    }
+}
+
+UCS_F_DEVICE uint64_t *
+uct_rc_mlx5_gda_get_ready_seq(uct_rc_gdaki_dev_ep_t *ep, unsigned cid,
+                              uint64_t wqe_idx)
+{
+    const uint64_t index = cid * ep->sq_wqe_num +
+                           (wqe_idx & (ep->sq_wqe_num - 1));
+
+    return ep->sq_ready_seq + index;
+}
+
+UCS_F_DEVICE uint64_t
+uct_rc_mlx5_gda_advance_ready(uct_rc_gdaki_dev_ep_t *ep, unsigned cid)
+{
+    uct_rc_gdaki_dev_qp_t *qp = uct_rc_mlx5_gda_get_qp(ep, cid);
+    uint64_t frontier;
+    uint64_t candidate;
+    uint64_t reserved;
+    uint64_t old_frontier;
+
+    for (;;) {
+        frontier = uct_rc_mlx5_gda_atomic_load(&qp->sq_ready_index);
+        reserved = uct_rc_mlx5_gda_atomic_load(&qp->sq_rsvd_index);
+        candidate = frontier;
+
+        while ((candidate < reserved) &&
+               (uct_rc_mlx5_gda_atomic_load(
+                        uct_rc_mlx5_gda_get_ready_seq(ep, cid, candidate)) ==
+                candidate + 1)) {
+            ++candidate;
+        }
+
+        if (candidate == frontier) {
+            return frontier;
+        }
+
+        doca_gpu_dev_verbs_fence_acquire<uct_rc_gdaki_sync_scope>();
+        doca_gpu_dev_verbs_fence_release<uct_rc_gdaki_sync_scope>();
+        old_frontier = uct_rc_mlx5_gda_atomic_cas(
+                &qp->sq_ready_index, frontier, candidate);
+        if (old_frontier == frontier) {
+            return candidate;
+        }
+    }
+}
+
 UCS_F_DEVICE void uct_rc_mlx5_gda_db(uct_rc_gdaki_dev_ep_t *ep, unsigned cid,
                                      uint64_t wqe_base, unsigned count,
                                      uint64_t flags)
@@ -246,47 +317,42 @@ UCS_F_DEVICE void uct_rc_mlx5_gda_db(uct_rc_gdaki_dev_ep_t *ep, unsigned cid,
     auto qp = uct_rc_mlx5_gda_get_qp(ep, cid);
     const uint64_t wqe_next = wqe_base + count;
     const bool skip_db      = !(flags & UCT_DEVICE_FLAG_NODELAY);
+    uint64_t ready;
+    uint64_t wqe_idx;
 
-    /* Publish WQEs before serializing doorbells, so a deferred producer
-     * does not wait for an earlier producer's MMIO writes. */
     doca_gpu_dev_verbs_fence_release<uct_rc_gdaki_sync_scope>();
-    if (UCT_RC_GDAKI_RESOURCE_SHARING_MODE ==
-        DOCA_GPUNETIO_VERBS_RESOURCE_SHARING_MODE_CTA) {
-        while (atomicCAS_block(
-                       (unsigned long long int*)&qp->sq_ready_index,
-                       (unsigned long long int)wqe_base,
-                       (unsigned long long int)wqe_next) !=
-               (unsigned long long int)wqe_base) {
-        }
-    } else {
-        while (atomicCAS(
-                       (unsigned long long int*)&qp->sq_ready_index,
-                       (unsigned long long int)wqe_base,
-                       (unsigned long long int)wqe_next) !=
-               (unsigned long long int)wqe_base) {
-        }
+    for (wqe_idx = wqe_base; wqe_idx < wqe_next; ++wqe_idx) {
+        uct_rc_mlx5_gda_atomic_store(
+                uct_rc_mlx5_gda_get_ready_seq(ep, cid, wqe_idx), wqe_idx + 1);
     }
+
+    ready = uct_rc_mlx5_gda_advance_ready(ep, cid);
+    if (skip_db) {
+        return;
+    }
+
+    while (ready < wqe_next) {
+        ready = uct_rc_mlx5_gda_advance_ready(ep, cid);
+    }
+
     doca_gpu_dev_verbs_fence_acquire<uct_rc_gdaki_sync_scope>();
+    doca_gpu_dev_verbs_lock<
+            UCT_RC_GDAKI_RESOURCE_SHARING_MODE>(&qp->sq_lock);
+    const uint64_t old_pi = doca_gpu_dev_verbs_atomic_max<
+            uint64_t, UCT_RC_GDAKI_RESOURCE_SHARING_MODE, true>(
+            &qp->sq_wqe_pi, wqe_next);
+    if (old_pi < wqe_next) {
+        const uint32_t qpn_ds = uct_rc_mlx5_load_const(&qp->qpn_ds);
+        auto *db_ptr = (uint64_t*)uct_rc_mlx5_load_const(
+                (uintptr_t*)&qp->sq_db);
+        auto *dbrec_ptr = &qp->qp_dbrec[MLX5_SND_DBR];
 
-    if (!skip_db) {
-        doca_gpu_dev_verbs_lock<
-                UCT_RC_GDAKI_RESOURCE_SHARING_MODE>(&qp->sq_lock);
-        const uint64_t old_pi = doca_gpu_dev_verbs_atomic_max<
-                uint64_t, UCT_RC_GDAKI_RESOURCE_SHARING_MODE, true>(
-                &qp->sq_wqe_pi, wqe_next);
-        if (old_pi < wqe_next) {
-            const uint32_t qpn_ds = uct_rc_mlx5_load_const(&qp->qpn_ds);
-            auto *db_ptr = (uint64_t*)uct_rc_mlx5_load_const(
-                    (uintptr_t*)&qp->sq_db);
-            auto *dbrec_ptr = &qp->qp_dbrec[MLX5_SND_DBR];
-
-            doca_gpu_dev_common_ring_db(db_ptr, qpn_ds, wqe_next);
-            doca_gpu_dev_common_update_dbr(dbrec_ptr, wqe_next);
-            doca_gpu_dev_common_ring_db(db_ptr, qpn_ds, wqe_next);
-        }
-        doca_gpu_dev_verbs_unlock<
-                UCT_RC_GDAKI_RESOURCE_SHARING_MODE>(&qp->sq_lock);
+        doca_gpu_dev_common_ring_db(db_ptr, qpn_ds, wqe_next);
+        doca_gpu_dev_common_update_dbr(dbrec_ptr, wqe_next);
+        doca_gpu_dev_common_ring_db(db_ptr, qpn_ds, wqe_next);
     }
+    doca_gpu_dev_verbs_unlock<
+            UCT_RC_GDAKI_RESOURCE_SHARING_MODE>(&qp->sq_lock);
 }
 
 UCS_F_DEVICE bool

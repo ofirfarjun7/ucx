@@ -170,13 +170,16 @@ static void uct_rc_gdaki_calc_dev_ep_layout(size_t num_channels, size_t wq_len,
                                             uint64_t *pgsz_bitmap_p)
 {
     uint64_t max_page_size;
+    size_t ready_size;
     size_t wq_umem_offset;
 
     UCS_STATIC_ASSERT(sizeof(uct_rc_gdaki_dev_ep_t) == UCT_GDAKI_DEV_EP_SIZE);
     UCS_STATIC_ASSERT(sizeof(uct_rc_gdaki_dev_qp_t) == UCT_GDAKI_DEV_QP_SIZE);
 
+    ready_size = (wq_len / MLX5_SEND_WQE_BB) * sizeof(uint64_t) *
+                 num_channels;
     wq_umem_offset = UCT_GDAKI_DEV_EP_SIZE +
-                     (UCT_GDAKI_DEV_QP_SIZE * num_channels);
+                     (UCT_GDAKI_DEV_QP_SIZE * num_channels) + ready_size;
     *dev_ep_size_p = wq_umem_offset + wq_len * num_channels;
     max_page_size  = ucs_min(UCT_GDAKI_DEV_EP_SIZE, UCT_GDAKI_DEV_QP_SIZE)
                      << UCT_GDAKI_CQ_PAGE_OFFSET_SHIFT;
@@ -634,7 +637,9 @@ uct_rc_gdaki_init_channel_chunk(uct_rc_gdaki_iface_t *iface,
     uct_ib_mlx5_wq_calc_sizes(&qp_attr);
 
     ep_qp_offset = UCT_GDAKI_DEV_EP_SIZE;
-    ep_wq_offset = ep_qp_offset + iface->num_channels * UCT_GDAKI_DEV_QP_SIZE;
+    ep_wq_offset = ep_qp_offset +
+                   iface->num_channels * UCT_GDAKI_DEV_QP_SIZE +
+                   iface->num_channels * qp_attr.max_tx * sizeof(uint64_t);
     dbrec.mem_id = mem->umem->umem_id;
 
     for (channel_index = 0; channel_index < iface->num_channels;
@@ -1185,7 +1190,9 @@ uct_rc_gdaki_ep_get_device_ep(uct_ep_h tl_ep, uct_device_ep_h *device_ep_p)
     ucs_status_t status;
     CUdeviceptr sq_db;
     unsigned i;
+    size_t dev_ep_meta_size;
     size_t dev_ep_host_size;
+    size_t ready_size;
 
     pthread_mutex_lock(&iface->ep_init_lock);
 
@@ -1195,8 +1202,13 @@ uct_rc_gdaki_ep_get_device_ep(uct_ep_h tl_ep, uct_device_ep_h *device_ep_p)
             goto out_unlock;
         }
 
-        dev_ep_host_size = UCT_GDAKI_DEV_EP_SIZE +
+        dev_ep_meta_size = UCT_GDAKI_DEV_EP_SIZE +
                            iface->num_channels * UCT_GDAKI_DEV_QP_SIZE;
+        ready_size       = iface->num_channels *
+                           uct_ib_mlx5_devx_sq_length(
+                                   iface->super.super.config.tx_qp_len) *
+                           sizeof(uint64_t);
+        dev_ep_host_size = dev_ep_meta_size + ready_size;
         dev_ep           = ucs_calloc(1, dev_ep_host_size, "dev_ep");
         if (dev_ep == NULL) {
             ucs_error("failed to allocate dev_ep on host buffer size=%zu ep=%p "
@@ -1212,10 +1224,10 @@ uct_rc_gdaki_ep_get_device_ep(uct_ep_h tl_ep, uct_device_ep_h *device_ep_p)
                 iface->super.super.config.tx_qp_len);
         dev_ep->sq_fc_mask   = (dev_ep->sq_wqe_num >> 1) - 1;
         dev_ep->channel_mask = iface->num_channels - 1;
+        dev_ep->sq_ready_seq = (uint64_t*)(ep->channel_block->gpu_ptr +
+                                           dev_ep_meta_size);
         dev_ep->sq_wqe_daddr = (uint8_t*)(ep->channel_block->gpu_ptr +
-                                          UCT_GDAKI_DEV_EP_SIZE +
-                                          iface->num_channels *
-                                                  UCT_GDAKI_DEV_QP_SIZE);
+                                          dev_ep_host_size);
 
         for (i = 0; i < iface->num_channels; ++i) {
             channel = &ep->channel_block->channels[i];
